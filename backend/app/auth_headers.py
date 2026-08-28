@@ -44,7 +44,9 @@ def parse_authentication_results(header_value: str | None) -> ClaimedAuthResults
     )
 
 
-def _check(name: str, weight_key: str, header_present: bool, value: str | None, mechanism: str) -> CheckResult:
+def _check(
+    name: str, weight_key: str, header_present: bool, value: str | None, mechanism: str
+) -> CheckResult:
     if not header_present or value is None:
         return CheckResult(
             name=name,
@@ -63,7 +65,16 @@ def _check(name: str, weight_key: str, header_present: bool, value: str | None, 
 
 def to_check_results(claimed: ClaimedAuthResults) -> list[CheckResult]:
     return [
-        _check("SPF authentication (claimed)", "spf_claimed", claimed.header_present, claimed.spf, "SPF"),
-        _check("DKIM authentication (claimed)", "dkim_claimed", claimed.header_present, claimed.dkim, "DKIM"),
-        _check("DMARC authentication (claimed)", "dmarc_claimed", claimed.header_present, claimed.dmarc, "DMARC"),
+        _check(
+            "SPF authentication (claimed)", "spf_claimed",
+            claimed.header_present, claimed.spf, "SPF",
+        ),
+        _check(
+            "DKIM authentication (claimed)", "dkim_claimed",
+            claimed.header_present, claimed.dkim, "DKIM",
+        ),
+        _check(
+            "DMARC authentication (claimed)", "dmarc_claimed",
+            claimed.header_present, claimed.dmarc, "DMARC",
+        ),
     ]
