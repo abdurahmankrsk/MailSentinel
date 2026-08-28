@@ -109,9 +109,100 @@ textarea {
   color: var(--red);
 }
 
-.raw-result {
-  margin-top: 1.5rem;
+.results {
+  margin-top: 2.5rem;
+}
+
+.score-display {
+  text-align: center;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+
+.score-number {
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.score-label {
+  margin-top: 0.4rem;
+  font-size: 0.95rem;
   color: var(--text-dim);
-  white-space: pre-wrap;
+}
+
+.score-green .score-number {
+  color: var(--green);
+}
+
+.score-yellow .score-number {
+  color: var(--yellow);
+}
+
+.score-red .score-number {
+  color: var(--red);
+}
+
+.checks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.checks-list li {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.check-icon {
+  font-size: 1.1rem;
+  line-height: 1.4;
+}
+
+.check-pass .check-icon {
+  color: var(--green);
+}
+
+.check-fail .check-icon {
+  color: var(--red);
+}
+
+.check-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.check-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.check-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.check-weight {
+  font-size: 0.8rem;
+  color: var(--red);
+  font-variant-numeric: tabular-nums;
+}
+
+.check-detail {
+  margin: 0.3rem 0 0;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1.4;
   word-break: break-word;
 }

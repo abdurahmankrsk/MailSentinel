@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import InputPanel from './components/InputPanel.jsx'
+import ScoreDisplay from './components/ScoreDisplay.jsx'
+import ChecksList from './components/ChecksList.jsx'
 import { scanContent } from './api.js'
 
 export default function App() {
@@ -33,7 +35,10 @@ export default function App() {
       {error && <div className="error-banner">{error}</div>}
 
       {result && (
-        <pre className="raw-result">{JSON.stringify(result, null, 2)}</pre>
+        <div className="results">
+          <ScoreDisplay score={result.score} />
+          <ChecksList checks={result.checks} />
+        </div>
       )}
     </div>
   )
