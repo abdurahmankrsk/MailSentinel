@@ -35,8 +35,8 @@ public final class ScoringConstants {
         Map.entry("dkim_claimed", 30),
         Map.entry("dmarc_claimed", 22),
         // Independent live DNS verification
-        Map.entry("spf_live", 18),
-        Map.entry("dmarc_live", 22),
+        Map.entry("spf_live", 9),
+        Map.entry("dmarc_live", 11),
         Map.entry("claimed_vs_live_disagreement", 20),
         // Link analysis
         Map.entry("link_lookalike", 55),
