@@ -12,21 +12,38 @@ JAR. This README doubles as a reference for explaining the detection techniques 
 loud (e.g. in an interview) — each section below is written to teach the idea, not
 just describe the code.
 
-## Privacy: nothing is persisted
+## Privacy: what is and isn't persisted
 
-There is no database, and the app never writes submitted content to disk or
-to logs. This is a deliberate design decision, not an oversight:
+Anonymous, unauthenticated scanning (the FREE experience) works exactly as
+before: the app never writes submitted content to disk or to logs.
 
 - Everything happens in memory, for the lifetime of a single request.
 - No logging call anywhere in the scan pipeline touches request content.
 - Baseline web logs only record the method, path, and status code of a request —
   never the body.
 - The frontend keeps scan results in local component state; closing or
-  refreshing the tab discards them. There's no history, no accounts, no
-  saved scans.
+  refreshing the tab discards them.
 
-If you paste a real, sensitive email into this tool, that content lives only
-in the request that scans it.
+A PREMIUM account changes this in a few specific, limited ways:
+
+- Creating an account stores your email and a hashed password — never the raw
+  password (BCrypt), and login sessions are opaque, hashed, revocable tokens, not
+  passwords or plaintext secrets.
+- AI-powered analyses send the scanned email/URL content to a third-party AI
+  provider (Groq or Gemini, depending on configuration) over the network, so the
+  provider processes that content — this is a real, deliberate expansion of the
+  trust boundary for PREMIUM users specifically, and doesn't happen on the FREE
+  path at all.
+- Only usage *counts* are stored (how many AI scans you've used this billing
+  period, and when it resets) — never scan content.
+- Idempotency records (used to make retried requests safe) store a one-way hash
+  of the request and the AI's output text, never the raw email or URL you
+  submitted.
+
+If you paste a real, sensitive email into this tool as an anonymous or FREE user,
+that content lives only in the request that scans it, exactly as always. As a
+PREMIUM user running an AI-powered analysis, that content is also sent to the
+configured AI provider for that one request.
 
 ## How scoring works
 
