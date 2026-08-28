@@ -118,8 +118,7 @@ public class LinkAnalysisService {
             }
 
             // 2. Shortener check
-            if (ScoringConstants.SHORTENER_DOMAINS.contains(domain) ||
-                ScoringConstants.SHORTENER_DOMAINS.contains(hostname.toLowerCase(Locale.ROOT))) {
+            if (UrlUtils.isShortener(hostname)) {
                 shortenerHits.add(link.href());
             }
 
