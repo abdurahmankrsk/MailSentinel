@@ -143,6 +143,38 @@ class ScanPipelineTest {
     }
 
     @Test
+    void brandParkedInASubdomainIsFlaggedEvenThoughTheRegistrableDomainIsClean() {
+        // verify-account.ru resembles no brand, so every distance-based technique
+        // scores this zero; the lie is that a human reads "paypal.com" first.
+        ScanResponse response = scoringService.scanUrl("https://paypal.com.verify-account.ru/secure");
+        assertTrue(response.score() >= 60, "Expected high risk, got: " + response.score());
+        assertTrue(response.checks().stream()
+            .anyMatch(c -> c.name().contains("brand-in-subdomain") && !c.passed()));
+    }
+
+    @Test
+    void brandOnItsOwnSubdomainIsNotFlagged() {
+        ScanResponse response = scoringService.scanUrl("https://mail.google.com/inbox");
+        assertTrue(response.checks().stream()
+            .allMatch(c -> !c.name().contains("brand-in-subdomain") || c.passed()));
+    }
+
+    @Test
+    void brandNameInsideALongerLabelIsNotFlagged() {
+        ScanResponse response = scoringService.scanUrl("https://mypaypalinvoices.example.com/x");
+        assertTrue(response.checks().stream()
+            .allMatch(c -> !c.name().contains("brand-in-subdomain") || c.passed()));
+    }
+
+    @Test
+    void shortenerIsScoredTheSameWhetherPastedAloneOrFoundInAnEmail() {
+        ScanResponse pasted = scoringService.scanUrl("https://bit.ly/3xamplE");
+        assertTrue(pasted.checks().stream()
+            .anyMatch(c -> c.name().contains("shortener") && !c.passed()),
+            "A shortener pasted on its own must flag, not just one found inside an email");
+    }
+
+    @Test
     void testUnknownScanTypeIsRejectedRatherThanSilentlyTreatedAsUrl() {
         assertThrows(IllegalArgumentException.class, () -> scoringService.runScan("banana", "https://paypal.com"));
     }
