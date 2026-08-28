@@ -44,7 +44,7 @@ class GroqAiProviderTest {
                 + new ObjectMapper().writeValueAsString(innerJson) + "}}]}";
         server.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/json"));
 
-        AiAnalysisResult result = provider.analyze(sampleRequest());
+        AiAnalysisResult result = provider.analyze(sampleRequest(), null);
 
         assertEquals("Looks like a phishing attempt.", result.summary());
         assertEquals(1, result.findings().size());
@@ -57,7 +57,7 @@ class GroqAiProviderTest {
         String body = "{\"choices\":[{\"message\":{\"content\":\"{\\\"summary\\\":\\\"ok\\\",\\\"findings\\\":[]}\"}}]}";
         server.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/json"));
 
-        provider.analyze(sampleRequest());
+        provider.analyze(sampleRequest(), null);
 
         RecordedRequest recorded = server.takeRequest();
         assertEquals("Bearer test-key", recorded.getHeader("Authorization"));
@@ -70,24 +70,35 @@ class GroqAiProviderTest {
     @Test
     void throwsOnNon2xxStatus() {
         server.enqueue(new MockResponse().setResponseCode(500).setBody("internal error"));
-        assertThrows(AiProviderException.class, () -> provider.analyze(sampleRequest()));
+        assertThrows(AiProviderException.class, () -> provider.analyze(sampleRequest(), null));
     }
 
     @Test
     void throwsOnEmptyChoices() {
         server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"choices\":[]}"));
-        assertThrows(AiProviderException.class, () -> provider.analyze(sampleRequest()));
+        assertThrows(AiProviderException.class, () -> provider.analyze(sampleRequest(), null));
     }
 
     @Test
     void throwsWhenInnerContentIsNotValidJson() {
         String body = "{\"choices\":[{\"message\":{\"content\":\"this is not json\"}}]}";
         server.enqueue(new MockResponse().setResponseCode(200).setBody(body));
-        assertThrows(AiProviderException.class, () -> provider.analyze(sampleRequest()));
+        assertThrows(AiProviderException.class, () -> provider.analyze(sampleRequest(), null));
     }
 
     @Test
     void providerNameIsGroq() {
         assertEquals("groq", provider.providerName());
+    }
+
+    @Test
+    void overrideApiKeyIsUsedInsteadOfTheConfiguredOne() throws Exception {
+        String body = "{\"choices\":[{\"message\":{\"content\":\"{\\\"summary\\\":\\\"ok\\\",\\\"findings\\\":[]}\"}}]}";
+        server.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/json"));
+
+        provider.analyze(sampleRequest(), "byok-override-key");
+
+        RecordedRequest recorded = server.takeRequest();
+        assertEquals("Bearer byok-override-key", recorded.getHeader("Authorization"));
     }
 }
