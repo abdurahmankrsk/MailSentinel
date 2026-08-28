@@ -1,0 +1,333 @@
+/*
+ * Panel styles. Loaded into a shadow root, never into the page, so these selectors can
+ * stay short without any risk of colliding with Gmail's or Outlook's own CSS -- and
+ * nothing here can leak out and restyle the host application.
+ *
+ * Tokens mirror app/client/src/styles.css so a verdict looks the same in the inbox as
+ * it does in the web app.
+ */
+:host {
+  --ground: #0a0e14;
+  --surface: #111823;
+  --raised: #17202c;
+  --line: #1e2a38;
+  --line-strong: #2b3a4b;
+  --ink: #e4ebf5;
+  --ink-2: #94a5bb;
+  --ink-3: #6f8199;
+  --accent: #38bdf8;
+  --pass: #45d483;
+  --caution: #f5b544;
+  --threat: #ff6b6b;
+
+  all: initial;
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 2147483000;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--ink);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.launcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+
+.launcher:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.launcher[hidden],
+.panel[hidden] {
+  display: none;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+.panel {
+  width: 380px;
+  max-width: calc(100vw - 40px);
+  max-height: min(70vh, 620px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--raised);
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.head-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.icon-button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.body {
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.verdict {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.verdict-score {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.verdict-max {
+  font-size: 14px;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.verdict-band {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.panel[data-band="low"] .verdict-score,
+.panel[data-band="low"] .verdict-band {
+  color: var(--pass);
+}
+
+.panel[data-band="medium"] .verdict-score,
+.panel[data-band="medium"] .verdict-band {
+  color: var(--caution);
+}
+
+.panel[data-band="high"] .verdict-score,
+.panel[data-band="high"] .verdict-band {
+  color: var(--threat);
+}
+
+.meter {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ground);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transform-origin: left center;
+  transition: transform 220ms ease;
+}
+
+.panel[data-band="low"] .meter-fill { background: var(--pass); }
+.panel[data-band="medium"] .meter-fill { background: var(--caution); }
+.panel[data-band="high"] .meter-fill { background: var(--threat); }
+
+.note {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin: 0 0 12px;
+}
+
+.banner {
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--ground);
+  color: var(--ink-2);
+  margin: 0 0 12px;
+}
+
+.banner.warn {
+  border-color: rgba(245, 181, 68, 0.4);
+  color: var(--caution);
+}
+
+.banner.error {
+  border-color: rgba(255, 107, 107, 0.45);
+  color: var(--threat);
+}
+
+.checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.check {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 9px 11px;
+  background: var(--ground);
+}
+
+.check-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.check-mark {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ground);
+}
+
+.check.passed .check-mark { background: var(--pass); }
+.check.failed .check-mark { background: var(--threat); }
+
+.check-weight {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+
+.check-detail {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-3);
+  margin: 0 0 8px;
+}
+
+.foot {
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--raised);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.button {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--ground);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.spinner {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--accent);
+  animation: spin 700ms linear infinite;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+  padding: 8px 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
+  .meter-fill { transition: none; }
+}
