@@ -26,10 +26,19 @@ export default function Modal({ open, onClose, titleId, title, children }) {
       }
       if (event.key !== 'Tab') return
       // Keep tabbing inside the dialog while it owns the screen.
-      const focusable = dialogRef.current?.querySelectorAll(
-        'button, input, [href], select, textarea, [tabindex]:not([tabindex="-1"])'
-      )
-      if (!focusable || focusable.length === 0) return
+      //
+      // Disabled and hidden controls are excluded rather than merely selected against,
+      // because the trap works by identifying the first and last focusable elements: a
+      // disabled submit button at the end of the form would become the "last" one, and
+      // Tab would then wrap from an element the browser refuses to focus, stranding
+      // focus instead of cycling it. The AI-key dialog has exactly that shape while a
+      // save is in flight.
+      const focusable = [
+        ...(dialogRef.current?.querySelectorAll(
+          'button, input, [href], select, textarea, [tabindex]:not([tabindex="-1"])'
+        ) ?? []),
+      ].filter((node) => !node.disabled && node.getClientRects().length > 0)
+      if (focusable.length === 0) return
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
       if (event.shiftKey && document.activeElement === first) {
