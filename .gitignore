@@ -1,14 +1,12 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.eggs/
-.venv/
-venv/
-env/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
 
 # Node
 node_modules/
@@ -23,6 +21,7 @@ pnpm-debug.log*
 # Editors / OS
 .vscode/
 .idea/
+*.iml
 .DS_Store
 Thumbs.db
 
