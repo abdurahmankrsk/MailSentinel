@@ -3,6 +3,7 @@ import InputPanel from './components/InputPanel.jsx'
 import ScoreDisplay from './components/ScoreDisplay.jsx'
 import ChecksList from './components/ChecksList.jsx'
 import AuthModal from './components/AuthModal.jsx'
+import { ShieldScanIcon } from './components/Icons.jsx'
 import UsagePanel from './components/UsagePanel.jsx'
 import { scanContent, fetchUsage, logoutUser } from './api.js'
 import { getToken, getEmail, setSession, clearSession } from './auth.js'
@@ -74,7 +75,7 @@ export default function App() {
           line together at every width, instead of the controls wrapping down and
           crowding the scan panel on narrow screens. */}
       <header className="app-header">
-        <h1>MailSentinel</h1>
+        <h1><ShieldScanIcon size={26} /> MailSentinel</h1>
         {email ? (
           <div className="account-strip">
             <span className="account-email">{email}</span>
