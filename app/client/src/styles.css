@@ -28,20 +28,23 @@ body {
 }
 
 header h1 {
-  margin: 0 0 0.25rem;
+  margin: 0;
   font-size: 2rem;
   letter-spacing: -0.02em;
 }
 
+/* Full-width basis puts the tagline on its own row beneath the title and the auth
+   controls, which share the row above it. */
 .tagline {
-  margin: 0 0 2rem;
+  flex: 1 0 100%;
+  margin: 0.25rem 0 2rem;
   color: var(--text-dim);
 }
 
 .app-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
 }
@@ -50,7 +53,6 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding-top: 0.3rem;
 }
 
 .account-email {
@@ -71,22 +73,177 @@ header h1 {
   text-decoration: underline;
 }
 
+/* Header auth controls -- same pill geometry and hover language as .type-toggle
+   buttons, so they read as part of the existing system rather than bare defaults. */
+.nav-button {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.nav-button:hover {
+  background: #1e222b;
+  border-color: #3a4150;
+}
+
+.nav-button-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.nav-button-primary:hover {
+  background: #4a7ce0;
+  border-color: #4a7ce0;
+}
+
+.nav-button:focus-visible,
+.modal-close:focus-visible,
+.google-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 14, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 50;
+}
+
+.modal-dialog {
+  width: 100%;
+  max-width: 400px;
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem 0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0 0.25rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.modal-close:hover {
+  color: var(--text);
+}
+
 .auth-panel {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-bottom: 2rem;
   padding: 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
 }
 
 .auth-form {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  max-width: 320px;
+}
+
+/* Inside the dialog the submit button spans the form rather than hugging its text,
+   which is what .scan-button does on the scan panel. Scoped under .auth-form so it
+   outranks .scan-button's own align-self, which is defined later in this file. */
+.auth-form .auth-submit {
+  align-self: stretch;
+  text-align: center;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.google-signin {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.google-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #dadce0;
+  color: #1f1f1f;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.google-button:hover:not(:disabled) {
+  background: #f5f6f7;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.google-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.google-mark {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.google-error {
+  margin: 0;
+  color: var(--red);
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .auth-form input {
@@ -310,4 +467,33 @@ textarea {
   font-size: 0.85rem;
   line-height: 1.4;
   word-break: break-word;
+}
+
+@media (max-width: 560px) {
+  .app {
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  header h1 {
+    font-size: 1.6rem;
+  }
+
+  .tagline {
+    margin-bottom: 1.5rem;
+  }
+
+  .modal-backdrop {
+    padding: 1rem;
+    /* Bottom-anchored on phones so the dialog sits above the thumb, not under
+       the browser chrome. */
+    align-items: flex-end;
+  }
+
+  .modal-dialog {
+    max-width: none;
+  }
+
+  .score-number {
+    font-size: 3rem;
+  }
 }

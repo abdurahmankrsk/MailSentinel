@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { loginUser, registerUser } from '../api.js'
+import GoogleSignInButton from './GoogleSignInButton.jsx'
 
-export default function AuthPanel({ onAuthenticated }) {
-  const [mode, setMode] = useState('login')
+// `initialMode` seeds the tab only on mount. AuthModal keys this component by mode, so
+// opening the dialog from "Sign up" rather than "Log in" remounts it on the right tab
+// instead of needing an effect to sync the prop back into state.
+export default function AuthPanel({ onAuthenticated, initialMode = 'login' }) {
+  const [mode, setMode] = useState(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
@@ -51,10 +55,12 @@ export default function AuthPanel({ onAuthenticated }) {
           minLength={8}
           required
         />
-        <button type="submit" className="scan-button" disabled={loading}>
+        <button type="submit" className="scan-button auth-submit" disabled={loading}>
           {loading ? 'Please wait...' : mode === 'login' ? 'Log in' : 'Create account'}
         </button>
       </form>
+
+      <GoogleSignInButton onAuthenticated={onAuthenticated} disabled={loading} />
 
       {error && <div className="error-banner">{error}</div>}
     </div>

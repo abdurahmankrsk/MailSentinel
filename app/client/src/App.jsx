@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import InputPanel from './components/InputPanel.jsx'
 import ScoreDisplay from './components/ScoreDisplay.jsx'
 import ChecksList from './components/ChecksList.jsx'
-import AuthPanel from './components/AuthPanel.jsx'
+import AuthModal from './components/AuthModal.jsx'
 import UsagePanel from './components/UsagePanel.jsx'
 import { scanContent, fetchUsage, logoutUser } from './api.js'
 import { getToken, getEmail, setSession, clearSession } from './auth.js'
@@ -19,6 +19,8 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState(getEmail())
   const [usage, setUsage] = useState(null)
+  // null when closed, otherwise the mode the dialog should open on.
+  const [authMode, setAuthMode] = useState(null)
 
   useEffect(() => {
     if (email) {
@@ -38,6 +40,7 @@ export default function App() {
   function handleAuthenticated(data) {
     setSession(data.token, data.email)
     setEmail(data.email)
+    setAuthMode(null)
   }
 
   async function handleLogout() {
@@ -66,21 +69,38 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* The tagline is a direct child rather than nested with the h1 so it can take a
+          full-width row of its own. That keeps the title and the auth controls on one
+          line together at every width, instead of the controls wrapping down and
+          crowding the scan panel on narrow screens. */}
       <header className="app-header">
-        <div>
-          <h1>MailSentinel</h1>
-          <p className="tagline">Paste an email or URL. Get a transparent phishing-risk breakdown.</p>
-        </div>
-        {email && (
+        <h1>MailSentinel</h1>
+        {email ? (
           <div className="account-strip">
             <span className="account-email">{email}</span>
             <button type="button" className="link-button" onClick={handleLogout}>Log out</button>
           </div>
+        ) : (
+          <div className="account-strip">
+            <button type="button" className="nav-button" onClick={() => setAuthMode('login')}>
+              Log in
+            </button>
+            <button type="button" className="nav-button nav-button-primary" onClick={() => setAuthMode('register')}>
+              Sign up
+            </button>
+          </div>
         )}
+        <p className="tagline">Paste an email or URL. Get a transparent phishing-risk breakdown.</p>
       </header>
 
       {email && <UsagePanel usage={usage} />}
-      {!email && <AuthPanel onAuthenticated={handleAuthenticated} />}
+
+      <AuthModal
+        open={authMode !== null}
+        initialMode={authMode ?? 'login'}
+        onClose={() => setAuthMode(null)}
+        onAuthenticated={handleAuthenticated}
+      />
 
       <InputPanel onScan={handleScan} loading={loading} />
 
