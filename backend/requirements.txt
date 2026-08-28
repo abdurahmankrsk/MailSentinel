@@ -1,6 +1,0 @@
-fastapi
-uvicorn[standard]
-dnspython
-rapidfuzz
-lxml
-tldextract
