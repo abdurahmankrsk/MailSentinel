@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { MoreVerticalIcon } from './Icons.jsx'
 
 const URL_LINE = /^(https?:\/\/)?[\w-]+(\.[\w-]+)+(\/|$)/i
 
@@ -50,9 +51,14 @@ export default function InputPanel({ onScan, loading }) {
           still there once you start typing, which is when "am I pasting the right
           thing?" actually comes up. */}
       <p className="input-hint">
-        {type === 'email'
-          ? 'Paste the full source of the email you received. To find it, open the message, click the three-dot menu, and choose Show original.'
-          : 'Paste any links you were sent, one per line. They are never opened.'}
+        {type === 'email' ? (
+          <>
+            Paste the full source of the email you received. To find it, open the message, click
+            the <MoreVerticalIcon size={15} className="hint-icon" /> menu, and choose Show original.
+          </>
+        ) : (
+          'Paste any links you were sent, one per line. They are never opened.'
+        )}
       </p>
 
       <textarea
