@@ -123,14 +123,6 @@ header h1 svg {
   flex-shrink: 0;
 }
 
-.tagline {
-  flex: 1 0 100%;
-  margin: 0.5rem 0 2.25rem;
-  color: var(--ink-2);
-  font-size: 0.92rem;
-  max-width: 56ch;
-}
-
 .account-strip {
   display: flex;
   align-items: center;
@@ -189,6 +181,31 @@ header h1 svg {
   color: #04121c;
 }
 
+/* ---------- Hero ---------- */
+
+.hero {
+  margin: 2.5rem 0 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.hero-title {
+  margin: 0;
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.hero-sub {
+  margin: 0;
+  max-width: 58ch;
+  color: var(--ink-2);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
 /* ---------- Scan panel ---------- */
 
 .input-panel {
@@ -228,6 +245,14 @@ header h1 svg {
   background: var(--accent-wash);
   border-color: var(--accent-deep);
   color: var(--accent);
+}
+
+.type-toggle button:disabled {
+  color: var(--ink-3);
+  border-color: var(--line);
+  background: transparent;
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .auto-hint {
@@ -308,6 +333,14 @@ textarea:focus {
   border-color: var(--line-strong);
   color: var(--ink-3);
   cursor: not-allowed;
+}
+
+.privacy-strip {
+  margin: 0.85rem 0 0;
+  color: var(--ink-3);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  max-width: 62ch;
 }
 
 /* ---------- Verdict meter ---------- */
@@ -598,13 +631,17 @@ textarea:focus {
   width: fit-content;
 }
 
+/* Sans, sentence case, light tracking -- a mono uppercase tracked pill reads as a
+   generic status chip rather than a considered label, so this stays in the UI
+   voice like any other name, not the data voice. */
 .plan-badge {
-  font-family: var(--font-data);
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  padding: 0.18rem 0.5rem;
-  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: capitalize;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-sm);
 }
 
 .plan-free {
@@ -615,6 +652,11 @@ textarea:focus {
 .plan-premium {
   background: var(--accent-wash);
   color: var(--accent);
+}
+
+.plan-enterprise {
+  background: var(--accent);
+  color: #04121c;
 }
 
 .usage-figures {
@@ -645,6 +687,16 @@ textarea:focus {
   background: var(--threat-wash);
   border: 1px solid rgba(255, 107, 107, 0.35);
   color: var(--threat);
+  font-size: 0.86rem;
+}
+
+.success-banner {
+  margin-top: 1.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--pass-wash);
+  border: 1px solid rgba(69, 212, 131, 0.35);
+  color: var(--pass);
   font-size: 0.86rem;
 }
 
@@ -759,6 +811,35 @@ textarea:focus {
   margin-top: 0.15rem;
 }
 
+/* An API key is pasted data, not a name -- monospace here for the same reason the
+   scan textarea is monospace, per the Data-Is-Mono rule. */
+.auth-form input.key-input {
+  font-family: var(--font-data);
+  font-size: 0.82rem;
+}
+
+.byok-form {
+  max-width: 32rem;
+}
+
+.byok-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.byok-label {
+  color: var(--ink-3);
+  font-size: 0.76rem;
+}
+
+.byok-defaults-note {
+  margin: -0.15rem 0 0.15rem;
+  color: var(--ink-3);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
 .auth-divider {
   display: flex;
   align-items: center;
@@ -825,6 +906,253 @@ textarea:focus {
   line-height: 1.5;
 }
 
+/* ---------- Landing sections ----------
+   Everything below is single-column, matching the rest of the page: this stays a
+   vertical scroll, never a sidebar or side-by-side grid. */
+
+.section-title {
+  margin: 0 0 0.6rem;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.section-lede {
+  margin: 0 0 1.5rem;
+  color: var(--ink-2);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  max-width: 62ch;
+}
+
+.techniques,
+.philosophy,
+.plans,
+.byok {
+  margin-top: 4.5rem;
+  padding-top: 3rem;
+  border-top: 1px solid var(--line);
+}
+
+.techniques-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.technique-name {
+  margin: 0 0 0.3rem;
+  font-size: 0.94rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.technique-body {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.87rem;
+  line-height: 1.6;
+  max-width: 60ch;
+}
+
+.tiers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.tier {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 0.9rem 1.1rem;
+}
+
+.tier[data-tier='high'] {
+  border-color: rgba(255, 107, 107, 0.32);
+  background: linear-gradient(90deg, var(--threat-wash), transparent 55%), var(--surface);
+}
+
+.tier[data-tier='medium'] {
+  border-color: rgba(245, 181, 68, 0.32);
+  background: linear-gradient(90deg, var(--caution-wash), transparent 55%), var(--surface);
+}
+
+.tier[data-tier='low'] {
+  border-color: rgba(69, 212, 131, 0.32);
+  background: linear-gradient(90deg, var(--pass-wash), transparent 55%), var(--surface);
+}
+
+.tier[data-tier='high'] .tier-label {
+  color: var(--threat);
+}
+
+.tier[data-tier='medium'] .tier-label {
+  color: var(--caution);
+}
+
+.tier[data-tier='low'] .tier-label {
+  color: var(--pass);
+}
+
+.tier-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.tier-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.tier-range {
+  flex-shrink: 0;
+  font-family: var(--font-data);
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.tier-body {
+  margin: 0.35rem 0 0;
+  color: var(--ink-2);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  max-width: 60ch;
+}
+
+.philosophy-note {
+  margin: 1.25rem 0 0;
+  color: var(--ink-2);
+  font-size: 0.87rem;
+  line-height: 1.6;
+  max-width: 62ch;
+}
+
+.philosophy-note em {
+  color: var(--ink);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.plan-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.plan-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 1.25rem 1.4rem;
+}
+
+.plan-card-premium {
+  border-color: rgba(56, 189, 248, 0.3);
+  background: linear-gradient(135deg, var(--accent-wash), transparent 60%), var(--surface);
+}
+
+.plan-card-enterprise {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), transparent 65%), var(--surface);
+}
+
+.plan-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.plan-price {
+  font-family: var(--font-data);
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-period {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.plan-features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  color: var(--ink-2);
+  font-size: 0.87rem;
+  line-height: 1.5;
+}
+
+.plan-features li {
+  padding-left: 1.1rem;
+  position: relative;
+}
+
+.plan-features li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--accent);
+}
+
+.plans-cta {
+  margin-top: 1.5rem;
+}
+
+/* ---------- Footer ---------- */
+
+.landing-footer {
+  margin-top: 4.5rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.landing-footer-mark {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.landing-footer-mark svg {
+  color: var(--accent);
+}
+
+.landing-footer-note {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  max-width: 56ch;
+}
+
 /* ---------- Narrow screens ---------- */
 
 @media (max-width: 560px) {
@@ -836,8 +1164,8 @@ textarea:focus {
     font-size: 1.3rem;
   }
 
-  .tagline {
-    margin-bottom: 1.75rem;
+  .hero-title {
+    font-size: 1.7rem;
   }
 
   .verdict-score {
@@ -860,5 +1188,17 @@ textarea:focus {
   .check-header {
     flex-wrap: wrap;
     gap: 0.2rem 0.75rem;
+  }
+
+  .techniques,
+  .philosophy,
+  .plans,
+  .byok {
+    margin-top: 3.25rem;
+    padding-top: 2.25rem;
+  }
+
+  .landing-footer {
+    margin-top: 3.25rem;
   }
 }
