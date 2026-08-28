@@ -43,7 +43,8 @@ public class GeminiAiProvider implements AiProvider {
     }
 
     @Override
-    public AiAnalysisResult analyze(AiAnalysisRequest request) throws AiProviderException {
+    public AiAnalysisResult analyze(AiAnalysisRequest request, String overrideApiKey) throws AiProviderException {
+        String effectiveKey = overrideApiKey != null ? overrideApiKey : apiKey;
         GenerateRequest generateRequest = new GenerateRequest(
                 new SystemInstruction(List.of(new Part(AiPrompts.SYSTEM_PROMPT))),
                 List.of(new Content(List.of(new Part(AiPrompts.userPrompt(request))))),
@@ -53,7 +54,7 @@ public class GeminiAiProvider implements AiProvider {
         GenerateResponse response;
         try {
             response = restClient.post()
-                    .uri("/models/{model}:generateContent?key={key}", model, apiKey)
+                    .uri("/models/{model}:generateContent?key={key}", model, effectiveKey)
                     .body(generateRequest)
                     .retrieve()
                     .body(GenerateResponse.class);
