@@ -72,3 +72,16 @@ export function CloseIcon(props) {
     </Svg>
   )
 }
+
+// A key: the bow is a plain circle (no fill, so it reads as an outline like every
+// other mark here), the shaft runs to it, and two short crossing strokes are its teeth.
+export function KeyIcon(props) {
+  return (
+    <Svg {...props}>
+      <circle cx="8" cy="15" r="4" />
+      <path d="M11 12 20 3" />
+      <path d="M17 6l3 3" />
+      <path d="M14 9l2 2" />
+    </Svg>
+  )
+}
