@@ -43,13 +43,22 @@ export default function InputPanel({ onScan, loading }) {
         {autoDetected && <span className="auto-hint">auto-detected</span>}
       </div>
 
+      {/* The hint sits outside the textarea rather than in the placeholder so it is
+          still there once you start typing, which is when "am I pasting the right
+          thing?" actually comes up. */}
+      <p className="input-hint">
+        {type === 'email'
+          ? 'Paste the full source of the email you received — headers and body. In Gmail: open the message, then the ⋮ menu → Show original.'
+          : 'Paste one link from the email you received — right-click the link, copy the address, and paste it here. The link is never opened.'}
+      </p>
+
       <textarea
         value={content}
         onChange={handleContentChange}
         placeholder={
           type === 'email'
-            ? 'Paste the raw email source (headers + body)...'
-            : 'Paste a URL...'
+            ? 'Delivered-To: ...\nAuthentication-Results: ...\nFrom: ...'
+            : 'https://example.com/the-link-you-were-sent'
         }
         rows={14}
       />
