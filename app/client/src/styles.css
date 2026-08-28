@@ -250,6 +250,13 @@ header h1 svg {
   color: var(--ink);
 }
 
+/* The literal control to look for, lifted out of the dimmed hint so it can be
+   scanned for in the mail client without reading the sentence. */
+.input-hint strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 textarea {
   width: 100%;
   background: var(--surface);
