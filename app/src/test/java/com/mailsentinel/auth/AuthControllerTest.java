@@ -71,6 +71,22 @@ class AuthControllerTest {
     }
 
     @Test
+    void registerRejectsDisposableAddressWithUnprocessableEntity() {
+        ResponseEntity<String> response = restTemplate.postForEntity(url("/api/auth/register"),
+                jsonBody("{\"email\":\"throwaway@mailinator.com\",\"password\":\"correct-horse-battery\"}"),
+                String.class);
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, response.getStatusCode());
+        assertTrue(response.getBody().contains("DISPOSABLE_EMAIL_DOMAIN"));
+
+        ResponseEntity<String> login = restTemplate.postForEntity(url("/api/auth/login"),
+                jsonBody("{\"email\":\"throwaway@mailinator.com\",\"password\":\"correct-horse-battery\"}"),
+                String.class);
+        assertEquals(HttpStatus.UNAUTHORIZED, login.getStatusCode(),
+                "the rejected signup must not have left an account behind");
+    }
+
+    @Test
     void loginSucceedsWithCorrectCredentials() {
         restTemplate.postForEntity(url("/api/auth/register"),
                 jsonBody("{\"email\":\"loginok@example.com\",\"password\":\"correct-horse-battery\"}"), AuthResponse.class);
