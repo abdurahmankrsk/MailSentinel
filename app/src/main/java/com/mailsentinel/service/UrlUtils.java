@@ -109,6 +109,27 @@ public final class UrlUtils {
     }
 
     /**
+     * Is this string a genuine registrable domain, rather than merely dot-separated text?
+     *
+     * The distinction matters wherever a domain has to be recognised inside prose. Both
+     * "paypal.com" and "attached.Please" are syntactically valid hostnames, but only the
+     * first sits under a real public suffix -- and treating the second as a domain is how
+     * a check that fires on domain mismatches starts firing on ordinary sentences with a
+     * missing space.
+     */
+    public static boolean isRegistrableDomain(String candidate) {
+        if (candidate == null || candidate.isBlank()) {
+            return false;
+        }
+        try {
+            String ascii = IDN.toASCII(candidate.trim().toLowerCase(Locale.ROOT));
+            return InternetDomainName.isValid(ascii) && InternetDomainName.from(ascii).isUnderPublicSuffix();
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    /**
      * Is this host a known URL shortener?
      *
      * Lives here rather than inside the link-analysis pipeline so the URL scan path
