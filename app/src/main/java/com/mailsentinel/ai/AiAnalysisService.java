@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * The entire AI-routing flow lives here: entitlement -> idempotency -> reserve ->
@@ -37,6 +38,8 @@ public class AiAnalysisService {
     private final UsageService usageService;
     private final IdempotencyService idempotencyService;
     private final AiProvider aiProvider;
+    private final AiKeyService aiKeyService;
+    private final AiProviderFactory aiProviderFactory;
     private final ObjectMapper objectMapper;
     private final int maxFindingWeight;
     private final int maxFindingCount;
@@ -46,6 +49,8 @@ public class AiAnalysisService {
             UsageService usageService,
             IdempotencyService idempotencyService,
             AiProvider aiProvider,
+            AiKeyService aiKeyService,
+            AiProviderFactory aiProviderFactory,
             ObjectMapper objectMapper,
             @Value("${mailsentinel.ai.finding.max-weight:35}") int maxFindingWeight,
             @Value("${mailsentinel.ai.finding.max-count:4}") int maxFindingCount
@@ -54,6 +59,8 @@ public class AiAnalysisService {
         this.usageService = usageService;
         this.idempotencyService = idempotencyService;
         this.aiProvider = aiProvider;
+        this.aiProviderFactory = aiProviderFactory;
+        this.aiKeyService = aiKeyService;
         this.objectMapper = objectMapper;
         this.maxFindingWeight = maxFindingWeight;
         this.maxFindingCount = maxFindingCount;
@@ -69,10 +76,23 @@ public class AiAnalysisService {
      */
     public ScanResponse analyze(User currentUser, String type, String content,
                                  ScanResponse deterministic, String idempotencyKey) {
-        if (currentUser == null || subscriptionService.currentPlan(currentUser.getId()) != Plan.PREMIUM) {
+        if (currentUser == null) {
             return deterministic;
         }
         Long userId = currentUser.getId();
+
+        // A user's own key always wins, on any plan, and bypasses MailSentinel's usage
+        // allowance and idempotency system entirely -- both exist to protect
+        // MailSentinel's own AI spend, which isn't at stake when the user is calling
+        // their own endpoint directly.
+        Optional<ActiveAiKey> ownKey = aiKeyService.activeKeyFor(userId);
+        if (ownKey.isPresent()) {
+            return analyzeWithOwnKey(type, content, deterministic, ownKey.get());
+        }
+
+        if (subscriptionService.currentPlan(userId) != Plan.PREMIUM) {
+            return deterministic;
+        }
 
         Long claimedRecordId = null;
         boolean hasIdempotencyKey = idempotencyKey != null && !idempotencyKey.isBlank();
@@ -112,7 +132,7 @@ public class AiAnalysisService {
         AiAnalysisRequest aiRequest = new AiAnalysisRequest(type, content, deterministic.score(), deterministic.checks());
 
         try {
-            AiAnalysisResult rawResult = aiProvider.analyze(aiRequest);
+            AiAnalysisResult rawResult = aiProvider.analyze(aiRequest, null);
             List<AiFinding> validated = validateAndClamp(rawResult.findings());
             AiAnalysisResult toSnapshot = new AiAnalysisResult(rawResult.summary(), validated);
 
@@ -130,6 +150,29 @@ public class AiAnalysisService {
             return withMeta(deterministic, new AiAnalysisMeta(
                     AiAnalysisStatus.AI_PROVIDER_ERROR, null,
                     "AI analysis failed and was not charged against your allowance.",
+                    null, null, null, null));
+        }
+    }
+
+    /**
+     * No usage reservation, no idempotency claim -- neither protects anything of
+     * MailSentinel's when the AI call is running against the caller's own endpoint.
+     * A fresh, throwaway client is built for this one call since the user's base
+     * URL and model can differ from this server's own configured provider; the
+     * shared aiProvider bean is only for the PREMIUM path below.
+     */
+    private ScanResponse analyzeWithOwnKey(String type, String content, ScanResponse deterministic, ActiveAiKey ownKey) {
+        AiAnalysisRequest aiRequest = new AiAnalysisRequest(type, content, deterministic.score(), deterministic.checks());
+        AiProvider ownProvider = aiProviderFactory.create(ownKey.baseUrl(), ownKey.model(), ownKey.apiKey());
+        try {
+            AiAnalysisResult rawResult = ownProvider.analyze(aiRequest, null);
+            List<AiFinding> validated = validateAndClamp(rawResult.findings());
+            AiAnalysisResult toSnapshot = new AiAnalysisResult(rawResult.summary(), validated);
+            return mergeIntoResponse(deterministic, toSnapshot, null, null, null, null);
+        } catch (Exception e) {
+            return withMeta(deterministic, new AiAnalysisMeta(
+                    AiAnalysisStatus.AI_PROVIDER_ERROR, null,
+                    "AI analysis failed using your own API key.",
                     null, null, null, null));
         }
     }
