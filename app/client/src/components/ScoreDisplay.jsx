@@ -39,6 +39,10 @@ export default function ScoreDisplay({ score }) {
       {/* The thresholds are drawn on the track rather than left implicit, so the
           number is readable as a position between two boundaries, not just a value. */}
       <div className="meter">
+        <div className="meter-ticks" aria-hidden="true">
+          <span className="meter-threshold" style={{ left: '30%' }} />
+          <span className="meter-threshold" style={{ left: '60%' }} />
+        </div>
         <div
           className="meter-track"
           role="meter"
@@ -47,9 +51,9 @@ export default function ScoreDisplay({ score }) {
           aria-valuemax={100}
           aria-labelledby="verdict-band"
         >
-          <div className="meter-fill" style={{ width: `${score}%` }} />
-          <span className="meter-threshold" style={{ left: '30%' }} />
-          <span className="meter-threshold" style={{ left: '60%' }} />
+          {/* Scaled rather than widened: transform composites, width relayouts every
+              frame. The track clips it, so the pill radius survives the scale. */}
+          <div className="meter-fill" style={{ transform: `scaleX(${score / 100})` }} />
         </div>
         <div className="meter-scale" aria-hidden="true">
           <span className="meter-mark" style={{ left: '30%' }}>30</span>
