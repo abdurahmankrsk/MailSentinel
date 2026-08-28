@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import AuthPanel from './AuthPanel.jsx'
+import { CloseIcon } from './Icons.jsx'
 
 /**
  * Dialog shell around the existing AuthPanel form.
@@ -65,7 +66,7 @@ export default function AuthModal({ open, initialMode, onClose, onAuthenticated 
         <div className="modal-header">
           <h2 id="auth-modal-title">{initialMode === 'register' ? 'Create your account' : 'Welcome back'}</h2>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
-            &times;
+            <CloseIcon size={18} />
           </button>
         </div>
         <AuthPanel key={initialMode} initialMode={initialMode} onAuthenticated={onAuthenticated} />
