@@ -60,6 +60,31 @@ public class AuthService {
         return new RegisteredUser(user, rawToken);
     }
 
+    /**
+     * Sign in with a Google-verified email, creating the account on first use.
+     *
+     * Accounts are linked by email address, which is safe here precisely because the
+     * caller has already proved -- via GoogleTokenVerifier -- that Google confirmed
+     * ownership of that mailbox. So a user who registered with a password and later
+     * clicks "Continue with Google" lands back in their existing account rather than
+     * a duplicate one.
+     *
+     * A brand-new Google account gets an unguessable random password hash rather than
+     * a null or empty one: the column is non-null, and this way the password login
+     * path stays closed for these accounts instead of being open with a known value.
+     */
+    @Transactional
+    public RegisteredUser loginOrRegisterWithGoogle(String verifiedEmail) {
+        String normalizedEmail = normalize(verifiedEmail);
+        User user = userRepository.findByEmail(normalizedEmail).orElse(null);
+        if (user == null) {
+            user = userRepository.save(
+                    new User(normalizedEmail, passwordEncoder.encode(tokenGenerator.generateRawToken())));
+            subscriptionService.createFreeSubscription(user.getId());
+        }
+        return new RegisteredUser(user, issueToken(user.getId()));
+    }
+
     @Transactional
     public void logout(String rawToken) {
         String tokenHash = tokenGenerator.hash(rawToken);

@@ -1,6 +1,7 @@
 package com.mailsentinel.config;
 
 import com.mailsentinel.auth.EmailAlreadyRegisteredException;
+import com.mailsentinel.auth.GoogleAuthException;
 import com.mailsentinel.auth.InvalidCredentialsException;
 import com.mailsentinel.dto.ErrorResponse;
 import org.springframework.http.HttpStatus;
@@ -27,5 +28,11 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ErrorResponse("INVALID_CREDENTIALS", ex.getMessage()));
+    }
+
+    @ExceptionHandler(GoogleAuthException.class)
+    public ResponseEntity<ErrorResponse> handleGoogleAuth(GoogleAuthException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ErrorResponse("GOOGLE_AUTH_FAILED", ex.getMessage()));
     }
 }

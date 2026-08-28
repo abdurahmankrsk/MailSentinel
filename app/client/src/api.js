@@ -55,6 +55,28 @@ export async function loginUser(email, password) {
   return response.json()
 }
 
+export async function fetchAuthConfig() {
+  const response = await fetch(`${API_BASE}/api/auth/config`)
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response))
+  }
+  return response.json()
+}
+
+// `credential` is the Google-issued ID token. It is verified server-side before it
+// names a user -- the browser never asserts an identity the server takes on trust.
+export async function googleSignIn(credential) {
+  const response = await fetch(`${API_BASE}/api/auth/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential }),
+  })
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response))
+  }
+  return response.json()
+}
+
 export async function logoutUser() {
   await fetch(`${API_BASE}/api/auth/logout`, {
     method: 'POST',
