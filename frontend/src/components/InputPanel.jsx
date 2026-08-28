@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 function guessType(content) {
   const trimmed = content.trim()
@@ -9,14 +9,19 @@ function guessType(content) {
 
 export default function InputPanel({ onScan, loading }) {
   const [content, setContent] = useState('')
-  const [type, setType] = useState('email')
-  const [autoDetected, setAutoDetected] = useState(false)
+  const [manualType, setManualType] = useState(null)
 
-  useEffect(() => {
-    const guess = guessType(content)
-    setAutoDetected(Boolean(guess))
-    if (guess) setType(guess)
-  }, [content])
+  const guessedType = guessType(content)
+  const type = manualType ?? guessedType ?? 'email'
+  const autoDetected = manualType === null && guessedType !== null
+
+  function handleContentChange(event) {
+    const value = event.target.value
+    setContent(value)
+    if (value.trim() === '') {
+      setManualType(null) // starting fresh: let auto-detect decide again
+    }
+  }
 
   return (
     <div className="input-panel">
@@ -24,14 +29,14 @@ export default function InputPanel({ onScan, loading }) {
         <button
           type="button"
           className={type === 'email' ? 'active' : ''}
-          onClick={() => setType('email')}
+          onClick={() => setManualType('email')}
         >
           Email
         </button>
         <button
           type="button"
           className={type === 'url' ? 'active' : ''}
-          onClick={() => setType('url')}
+          onClick={() => setManualType('url')}
         >
           URL
         </button>
@@ -40,7 +45,7 @@ export default function InputPanel({ onScan, loading }) {
 
       <textarea
         value={content}
-        onChange={(event) => setContent(event.target.value)}
+        onChange={handleContentChange}
         placeholder={
           type === 'email'
             ? 'Paste the raw email source (headers + body)...'
