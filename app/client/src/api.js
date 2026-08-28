@@ -2,9 +2,20 @@ import { getToken } from './auth.js'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
+// The server speaks two error shapes: RFC 7807 problem details ({ detail, title }) for
+// anything thrown as a ResponseStatusException, and ApiExceptionHandler's
+// { error, message } for named exceptions -- where `error` is a machine-readable code
+// like EMAIL_ALREADY_REGISTERED and `message` is the sentence meant for a human.
+// Prose fields are therefore read first, and the code is only a last resort before the
+// status line: showing a user "DISPOSABLE_EMAIL_DOMAIN" tells them nothing about what
+// to do next, while the message it ships alongside says exactly that.
 async function parseErrorMessage(response) {
   const body = await response.json().catch(() => null)
-  const message = body?.error || body?.detail || body?.message || `Request failed (${response.status})`
+  const candidates = [body?.message, body?.detail, body?.error, body?.title]
+  const message =
+    candidates.find((value) => typeof value === 'string' && value.trim() !== '') ??
+    candidates.find((value) => value != null && typeof value === 'object') ??
+    `Request failed (${response.status})`
   return typeof message === 'object' ? JSON.stringify(message) : message
 }
 
