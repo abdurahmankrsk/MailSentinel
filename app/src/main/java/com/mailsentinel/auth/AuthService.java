@@ -15,6 +15,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final AuthTokenRepository authTokenRepository;
     private final SubscriptionService subscriptionService;
+    private final DisposableEmailDomainService disposableEmailDomainService;
     private final PasswordEncoder passwordEncoder;
     private final TokenGenerator tokenGenerator;
     private final Duration tokenTtl;
@@ -23,6 +24,7 @@ public class AuthService {
             UserRepository userRepository,
             AuthTokenRepository authTokenRepository,
             SubscriptionService subscriptionService,
+            DisposableEmailDomainService disposableEmailDomainService,
             PasswordEncoder passwordEncoder,
             TokenGenerator tokenGenerator,
             @org.springframework.beans.factory.annotation.Value("${mailsentinel.auth.token-ttl:P30D}") Duration tokenTtl
@@ -30,6 +32,7 @@ public class AuthService {
         this.userRepository = userRepository;
         this.authTokenRepository = authTokenRepository;
         this.subscriptionService = subscriptionService;
+        this.disposableEmailDomainService = disposableEmailDomainService;
         this.passwordEncoder = passwordEncoder;
         this.tokenGenerator = tokenGenerator;
         this.tokenTtl = tokenTtl;
@@ -38,6 +41,10 @@ public class AuthService {
     @Transactional
     public RegisteredUser register(String email, String rawPassword) {
         String normalizedEmail = normalize(email);
+        // Checked before the duplicate lookup so a throwaway address gets the same answer
+        // whether or not it happens to be taken -- the rejection is about the domain, and
+        // a 409 here would confirm to the sender that some address is registered.
+        disposableEmailDomainService.requireNotDisposable(normalizedEmail);
         if (userRepository.existsByEmail(normalizedEmail)) {
             throw new EmailAlreadyRegisteredException(normalizedEmail);
         }
@@ -72,12 +79,19 @@ public class AuthService {
      * A brand-new Google account gets an unguessable random password hash rather than
      * a null or empty one: the column is non-null, and this way the password login
      * path stays closed for these accounts instead of being open with a known value.
+     *
+     * The disposable-domain check applies only to the branch that creates an account.
+     * Google having verified the mailbox says nothing about it being permanent -- a
+     * throwaway provider can run on Workspace like anyone else -- but an account that
+     * already exists keeps signing in, because locking people out of accounts they
+     * already have is a different decision from refusing to open new ones.
      */
     @Transactional
     public RegisteredUser loginOrRegisterWithGoogle(String verifiedEmail) {
         String normalizedEmail = normalize(verifiedEmail);
         User user = userRepository.findByEmail(normalizedEmail).orElse(null);
         if (user == null) {
+            disposableEmailDomainService.requireNotDisposable(normalizedEmail);
             user = userRepository.save(
                     new User(normalizedEmail, passwordEncoder.encode(tokenGenerator.generateRawToken())));
             subscriptionService.createFreeSubscription(user.getId());
