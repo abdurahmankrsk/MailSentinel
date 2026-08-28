@@ -1,5 +1,6 @@
 package com.mailsentinel.auth;
 
+import com.mailsentinel.subscription.SubscriptionService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +14,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final AuthTokenRepository authTokenRepository;
+    private final SubscriptionService subscriptionService;
     private final PasswordEncoder passwordEncoder;
     private final TokenGenerator tokenGenerator;
     private final Duration tokenTtl;
@@ -20,12 +22,14 @@ public class AuthService {
     public AuthService(
             UserRepository userRepository,
             AuthTokenRepository authTokenRepository,
+            SubscriptionService subscriptionService,
             PasswordEncoder passwordEncoder,
             TokenGenerator tokenGenerator,
             @org.springframework.beans.factory.annotation.Value("${mailsentinel.auth.token-ttl:P30D}") Duration tokenTtl
     ) {
         this.userRepository = userRepository;
         this.authTokenRepository = authTokenRepository;
+        this.subscriptionService = subscriptionService;
         this.passwordEncoder = passwordEncoder;
         this.tokenGenerator = tokenGenerator;
         this.tokenTtl = tokenTtl;
@@ -39,6 +43,7 @@ public class AuthService {
         }
         User user = new User(normalizedEmail, passwordEncoder.encode(rawPassword));
         user = userRepository.save(user);
+        subscriptionService.createFreeSubscription(user.getId());
         String rawToken = issueToken(user.getId());
         return new RegisteredUser(user, rawToken);
     }
