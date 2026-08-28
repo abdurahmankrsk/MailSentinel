@@ -1,5 +1,6 @@
 package com.mailsentinel.config;
 
+import com.mailsentinel.auth.DisposableEmailDomainException;
 import com.mailsentinel.auth.EmailAlreadyRegisteredException;
 import com.mailsentinel.auth.GoogleAuthException;
 import com.mailsentinel.auth.InvalidCredentialsException;
@@ -22,6 +23,18 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorResponse> handleEmailAlreadyRegistered(EmailAlreadyRegisteredException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ErrorResponse("EMAIL_ALREADY_REGISTERED", ex.getMessage()));
+    }
+
+    /**
+     * 422 rather than 400: the request is well-formed and was understood, the address is
+     * simply one this service declines to open an account for. That keeps it distinct
+     * from the plain 400 the register endpoint returns for a missing email or a short
+     * password, so a client can tell "you typed it wrong" from "not that provider".
+     */
+    @ExceptionHandler(DisposableEmailDomainException.class)
+    public ResponseEntity<ErrorResponse> handleDisposableEmailDomain(DisposableEmailDomainException ex) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(new ErrorResponse("DISPOSABLE_EMAIL_DOMAIN", ex.getMessage()));
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
