@@ -237,6 +237,14 @@ header h1 svg {
   letter-spacing: 0.04em;
 }
 
+.input-hint {
+  margin: -0.15rem 0 0;
+  color: var(--ink-2);
+  font-size: 0.84rem;
+  line-height: 1.55;
+  max-width: 62ch;
+}
+
 textarea {
   width: 100%;
   background: var(--surface);
