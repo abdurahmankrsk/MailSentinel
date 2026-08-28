@@ -250,7 +250,7 @@ header h1 svg {
   vertical-align: -0.22em;
   margin: 0 0.05em;
   color: var(--ink);
-  stroke-width: 2.6;
+  stroke-width: 4;
 }
 
 /* The literal control to look for, lifted out of the dimmed hint so it can be
