@@ -5,7 +5,13 @@ import ChecksList from './components/ChecksList.jsx'
 import AuthModal from './components/AuthModal.jsx'
 import { ShieldScanIcon } from './components/Icons.jsx'
 import UsagePanel from './components/UsagePanel.jsx'
-import { scanContent, fetchUsage, logoutUser } from './api.js'
+import Hero from './components/Hero.jsx'
+import TechniqueBreakdown from './components/TechniqueBreakdown.jsx'
+import ScoringPhilosophy from './components/ScoringPhilosophy.jsx'
+import PlanTeaser from './components/PlanTeaser.jsx'
+import BringYourOwnKey from './components/BringYourOwnKey.jsx'
+import LandingFooter from './components/LandingFooter.jsx'
+import { scanContent, fetchUsage, fetchAiKeyConfig, fetchAiKeyStatus, logoutUser } from './api.js'
 import { getToken, getEmail, setSession, clearSession } from './auth.js'
 
 const AI_STATUS_MESSAGES = {
@@ -20,12 +26,20 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState(getEmail())
   const [usage, setUsage] = useState(null)
+  const [aiKeyStatus, setAiKeyStatus] = useState(null)
   // null when closed, otherwise the mode the dialog should open on.
   const [authMode, setAuthMode] = useState(null)
+
+  // Public, so a visitor who isn't signed in yet still learns whether the section
+  // at the bottom of the page is worth showing at all.
+  useEffect(() => {
+    fetchAiKeyConfig().then(setAiKeyStatus).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (email) {
       refreshUsage()
+      refreshAiKeyStatus()
     }
   }, [email])
 
@@ -35,6 +49,14 @@ export default function App() {
     } catch {
       // A stale/expired token surfaces to the user the next time they act (e.g. a
       // scan returning 401); the usage strip just quietly stays blank until then.
+    }
+  }
+
+  async function refreshAiKeyStatus() {
+    try {
+      setAiKeyStatus(await fetchAiKeyStatus())
+    } catch {
+      // Same quiet-degrade as refreshUsage -- a stale token surfaces on next action.
     }
   }
 
@@ -49,6 +71,9 @@ export default function App() {
     clearSession()
     setEmail(null)
     setUsage(null)
+    // Drop the personal label/last4 but keep featureEnabled so the section at the
+    // bottom of the page doesn't disappear just because you logged out.
+    setAiKeyStatus((current) => (current ? { ...current, label: null, last4: null } : current))
   }
 
   async function handleScan(type, content) {
@@ -70,10 +95,6 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* The tagline is a direct child rather than nested with the h1 so it can take a
-          full-width row of its own. That keeps the title and the auth controls on one
-          line together at every width, instead of the controls wrapping down and
-          crowding the scan panel on narrow screens. */}
       <header className="app-header">
         <h1><ShieldScanIcon size={26} /> MailSentinel</h1>
         {email ? (
@@ -91,10 +112,11 @@ export default function App() {
             </button>
           </div>
         )}
-        <p className="tagline">Paste an email or URL. Get a transparent phishing-risk breakdown.</p>
       </header>
 
-      {email && <UsagePanel usage={usage} />}
+      <Hero />
+
+      {email && <UsagePanel usage={usage} aiKeyStatus={aiKeyStatus} />}
 
       <AuthModal
         open={authMode !== null}
@@ -104,6 +126,14 @@ export default function App() {
       />
 
       <InputPanel onScan={handleScan} loading={loading} />
+
+      {/* Trust matters most at the exact moment someone is about to paste something
+          sensitive, so this sits immediately below the input rather than buried in a
+          footer no one reads before scanning. */}
+      <p className="privacy-strip">
+        Nothing you paste here is ever written to disk or logged. Scanning is
+        anonymous and free, with no account required.
+      </p>
 
       {error && <div className="error-banner">{error}</div>}
 
@@ -124,6 +154,17 @@ export default function App() {
           )}
         </div>
       )}
+
+      <TechniqueBreakdown />
+      <ScoringPhilosophy />
+      <PlanTeaser onSignUp={() => setAuthMode('register')} />
+      <BringYourOwnKey
+        email={email}
+        aiKeyStatus={aiKeyStatus}
+        onStatusChange={setAiKeyStatus}
+        onSignUp={() => setAuthMode('register')}
+      />
+      <LandingFooter />
     </div>
   )
 }
