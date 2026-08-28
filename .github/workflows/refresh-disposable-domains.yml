@@ -1,0 +1,108 @@
+name: Refresh disposable email domains
+
+# The blocklist is vendored (app/src/main/resources/disposable-email-domains.txt) so that
+# signup never depends on a third-party host being up. The cost of vendoring is that the
+# copy goes stale, and throwaway providers appear constantly -- so this job re-fetches it
+# weekly and opens a PR when upstream has moved. Review still happens in the PR; nothing
+# lands on main unattended.
+
+on:
+  schedule:
+    - cron: "17 4 * * 1" # Mondays, 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      BLOCKLIST: app/src/main/resources/disposable-email-domains.txt
+      UPSTREAM: https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/main/disposable_email_blocklist.conf
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download upstream blocklist
+        run: curl -fsSL --retry 3 --retry-delay 5 -o upstream.txt "$UPSTREAM"
+
+      - name: Sanity-check the download
+        # A truncated response, an HTML error page served with a 200, or an upstream that
+        # mass-deletes entries would otherwise be committed as a "refresh" that quietly
+        # disables the check. Refuse anything that isn't a plausible domain list, and
+        # refuse a shrink of more than 10% without a human looking at it first.
+        run: |
+          set -euo pipefail
+          new_count=$(wc -l < upstream.txt)
+          old_count=$(wc -l < "$BLOCKLIST")
+          echo "upstream=$new_count current=$old_count"
+
+          if [ "$new_count" -lt 1000 ]; then
+            echo "::error::Upstream returned only $new_count lines; refusing to use it."
+            exit 1
+          fi
+          if grep -qiE '<(html|!doctype)' upstream.txt; then
+            echo "::error::Upstream response looks like an HTML page, not a domain list."
+            exit 1
+          fi
+          if grep -qvE '^[a-z0-9.-]+\.[a-z0-9-]+$' upstream.txt; then
+            echo "::error::Upstream contains lines that are not bare lowercase domains:"
+            grep -nvE '^[a-z0-9.-]+\.[a-z0-9-]+$' upstream.txt | head -20
+            exit 1
+          fi
+          if [ "$new_count" -lt $((old_count * 9 / 10)) ]; then
+            echo "::error::Upstream shrank from $old_count to $new_count lines; refusing an unreviewed drop."
+            exit 1
+          fi
+
+      - name: Apply the refresh
+        id: apply
+        run: |
+          set -euo pipefail
+          mv upstream.txt "$BLOCKLIST"
+          if git diff --quiet -- "$BLOCKLIST"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Blocklist already current."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "added=$(git diff --numstat -- "$BLOCKLIST" | cut -f1)" >> "$GITHUB_OUTPUT"
+            echo "removed=$(git diff --numstat -- "$BLOCKLIST" | cut -f2)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK 21
+        if: steps.apply.outputs.changed == 'true'
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+
+      - name: Verify the app still loads the list
+        # The refreshed file has to survive DisposableEmailDomainServiceTest, which asserts
+        # the list parses, is non-trivially sized, and still lets mainstream providers
+        # through -- so a bad upstream day cannot lock real users out of signup.
+        if: steps.apply.outputs.changed == 'true'
+        working-directory: app
+        run: |
+          chmod +x mvnw
+          ./mvnw -B test -Dtest=DisposableEmailDomainServiceTest
+
+      - name: Open a pull request
+        if: steps.apply.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/refresh-disposable-domains
+          commit-message: "chore: refresh the disposable email domain blocklist"
+          title: "chore: refresh the disposable email domain blocklist"
+          body: |
+            Automated weekly sync with
+            [disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains) (CC0).
+
+            `+${{ steps.apply.outputs.added }} / -${{ steps.apply.outputs.removed }}` lines.
+
+            `DisposableEmailDomainServiceTest` passed against the refreshed list. Worth a
+            skim of the removed entries before merging: an entry leaving the list means
+            that domain becomes able to register again.
+          labels: dependencies
+          delete-branch: true
