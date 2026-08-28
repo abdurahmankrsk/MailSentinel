@@ -1,10 +1,12 @@
 package com.mailsentinel.service;
 
 import com.mailsentinel.dto.ParsedEmail;
+import jakarta.mail.Address;
 import jakarta.mail.BodyPart;
 import jakarta.mail.Multipart;
 import jakarta.mail.Part;
 import jakarta.mail.Session;
+import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.stereotype.Service;
 
@@ -12,8 +14,6 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Turn a raw pasted email (headers + MIME body) into structured components:
@@ -23,10 +23,6 @@ import java.util.regex.Pattern;
  */
 @Service
 public class EmailParserService {
-
-    private static final Pattern FROM_EMAIL_PATTERN = Pattern.compile(
-        "(?:<|\\b)([A-Za-z0-9._%+-]+)@([A-Za-z0-9.\\u0080-\\uFFFF-]+)(?:>|\\b)"
-    );
 
     public ParsedEmail parseEmail(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -50,15 +46,22 @@ public class EmailParserService {
                 }
             } catch (Exception ignored) {}
 
-            // 2. Sender Domain from From header
+            // 2. Sender domain from the From header. Uses Jakarta Mail's own address
+            // parser rather than a hand-rolled regex, so a quoted display name that
+            // itself looks like an address -- e.g.
+            //   From: "security@paypal.com" <phisher@evil-domain.ru>
+            // -- can't shadow the real sending address: getFrom() understands RFC 5322
+            // quoting and always resolves to the bracketed address, not the first
+            // "word@word" substring encountered while scanning the raw header text.
             String senderDomain = null;
             try {
-                String[] fromHeaders = message.getHeader("From");
-                if (fromHeaders != null && fromHeaders.length > 0) {
-                    String fromHeader = String.join(", ", fromHeaders);
-                    Matcher matcher = FROM_EMAIL_PATTERN.matcher(fromHeader);
-                    if (matcher.find()) {
-                        senderDomain = matcher.group(2).trim().toLowerCase(Locale.ROOT);
+                Address[] fromAddresses = message.getFrom();
+                if (fromAddresses != null && fromAddresses.length > 0
+                        && fromAddresses[0] instanceof InternetAddress internetAddress) {
+                    String address = internetAddress.getAddress();
+                    int at = address == null ? -1 : address.lastIndexOf('@');
+                    if (at >= 0 && at < address.length() - 1) {
+                        senderDomain = address.substring(at + 1).trim().toLowerCase(Locale.ROOT);
                     }
                 }
             } catch (Exception ignored) {}
