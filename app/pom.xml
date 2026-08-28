@@ -99,10 +99,13 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- runtime (not test-only): lets the app boot against a local H2 file DB for
+             quick local exploration before Supabase credentials exist, via the same
+             SPRING_DATASOURCE_* env vars used for the real Postgres connection -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <scope>test</scope>
+            <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>

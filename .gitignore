@@ -8,6 +8,11 @@ target/
 .mvn/timing.properties
 .mvn/wrapper/maven-wrapper.jar
 
+# Local H2 database files (used for local runs before Supabase is configured)
+app/data/
+*.mv.db
+*.trace.db
+
 # Node
 node_modules/
 dist/
@@ -32,8 +37,9 @@ Thumbs.db
 .impeccable/
 skills-lock.json
 
-# Secrets -- this project needs none (no external API keys, no DB), but
-# ignore common secret-carrying files/patterns defensively anyway.
+# Secrets -- DB credentials and AI provider keys are read from real environment
+# variables only (see app/src/main/resources/application.properties), never from
+# a committed file, but ignore common secret-carrying files/patterns defensively.
 .env
 .env.*
 !.env.example
