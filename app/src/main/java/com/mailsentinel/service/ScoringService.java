@@ -22,6 +22,7 @@ public class ScoringService {
         put("char_substitution", "character substitution");
         put("homoglyph", "homoglyph / mixed-script");
         put("tld_swap", "TLD swap");
+        put("brand_subdomain", "brand-in-subdomain");
     }};
 
     private final AuthHeaderService authHeaderService;
@@ -82,6 +83,18 @@ public class ScoringService {
         );
     }
 
+    private CheckResult shortenerCheck(String hostname) {
+        boolean flagged = UrlUtils.isShortener(hostname);
+        return new CheckResult(
+            "URL shortener",
+            !flagged,
+            ScoringConstants.getWeight("url_shortener"),
+            flagged
+                ? hostname + " is a known URL shortener, so the real destination is hidden until it is opened"
+                : "Host is not a known URL shortener"
+        );
+    }
+
     private CheckResult ipHostnameCheck(String name, String hostname) {
         boolean flagged = hostname != null && UrlUtils.isIpLiteral(hostname);
         return new CheckResult(
@@ -130,6 +143,7 @@ public class ScoringService {
         List<CheckResult> checks = new ArrayList<>();
         checks.addAll(domainLookalikeChecks(hostname, "URL domain"));
         checks.add(ipHostnameCheck("Raw IP address as hostname", hostname));
+        checks.add(shortenerCheck(hostname));
 
         return finalizeScore(checks);
     }
