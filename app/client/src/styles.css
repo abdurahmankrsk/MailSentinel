@@ -372,21 +372,29 @@ textarea:focus {
   height: 6px;
   border-radius: 99px;
   background: var(--raised);
-  overflow: visible;
+  /* Clips the fill, so scaling it horizontally can't stretch the pill ends. */
+  overflow: hidden;
 }
 
 .meter-fill {
+  width: 100%;
   height: 100%;
-  border-radius: 99px;
-  transition: width 0.6s var(--ease-out);
+  transform-origin: left center;
+  transition: transform 0.6s var(--ease-out);
 }
 
 /* Boundaries are marked above the track, like a ruler, rather than drawn through it:
    crossing the bar puts them in a contrast fight with whichever band colour has
    filled it, and at 100 they vanish into the fill entirely. */
+.meter-ticks {
+  position: relative;
+  height: 4px;
+  margin-bottom: 3px;
+}
+
 .meter-threshold {
   position: absolute;
-  top: -7px;
+  top: 0;
   width: 1px;
   height: 4px;
   background: var(--ink-3);
