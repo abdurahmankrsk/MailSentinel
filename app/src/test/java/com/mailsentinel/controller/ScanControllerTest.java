@@ -1,5 +1,6 @@
 package com.mailsentinel.controller;
 
+import com.mailsentinel.ai.AiAnalysisService;
 import com.mailsentinel.dto.ScanResponse;
 import com.mailsentinel.service.ScoringService;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -33,6 +35,9 @@ class ScanControllerTest {
     @MockBean
     private ScoringService scoringService;
 
+    @MockBean
+    private AiAnalysisService aiAnalysisService;
+
     @Test
     void rejectsUnknownScanTypeWithBadRequest() throws Exception {
         // Previously silently treated as a URL scan instead of being rejected.
@@ -52,8 +57,12 @@ class ScanControllerTest {
 
     @Test
     void acceptsValidUrlScanRequest() throws Exception {
-        when(scoringService.runScan(anyString(), anyString()))
-            .thenReturn(new ScanResponse(0, List.of()));
+        ScanResponse deterministic = new ScanResponse(0, List.of(), null);
+        when(scoringService.runScan(anyString(), anyString())).thenReturn(deterministic);
+        // This slice tests controller-level validation only, not AI routing (that's
+        // AiAnalysisServiceTest's job) -- stub it to pass the deterministic result through
+        // unchanged, exactly as it does for a real anonymous/FREE caller.
+        when(aiAnalysisService.analyze(any(), anyString(), anyString(), any(), any())).thenReturn(deterministic);
 
         mockMvc.perform(post("/api/scan")
                 .contentType(MediaType.APPLICATION_JSON)

@@ -124,7 +124,7 @@ public class ScoringService {
             .mapToInt(CheckResult::weight)
             .sum();
         int score = Math.min(100, rawScore);
-        return new ScanResponse(score, checks);
+        return new ScanResponse(score, checks, null);
     }
 
     public ScanResponse runScan(String type, String content) {
