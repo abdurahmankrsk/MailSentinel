@@ -38,6 +38,111 @@ header h1 {
   color: var(--text-dim);
 }
 
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.account-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 0.3rem;
+}
+
+.account-email {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 320px;
+}
+
+.auth-form input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+.usage-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  width: fit-content;
+}
+
+.plan-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+}
+
+.plan-free {
+  background: rgba(154, 163, 178, 0.15);
+  color: var(--text-dim);
+}
+
+.plan-premium {
+  background: rgba(91, 141, 239, 0.18);
+  color: var(--accent);
+}
+
+.usage-figures {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.ai-summary {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: rgba(91, 141, 239, 0.12);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
 .input-panel {
   display: flex;
   flex-direction: column;
