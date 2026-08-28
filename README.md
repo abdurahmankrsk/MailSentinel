@@ -206,6 +206,8 @@ python -m venv .venv
 
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
+
+ruff check app/   # lint (same check CI runs)
 ```
 
 ### Frontend
@@ -214,10 +216,19 @@ uvicorn app.main:app --reload --port 8000
 cd frontend
 npm install
 npm run dev
+
+npm run lint    # eslint (same check CI runs)
+npm run build   # production build
 ```
 
 By default the frontend talks to `http://localhost:8000`. To point it
 elsewhere, set `VITE_API_BASE` (e.g. in a `frontend/.env.local`).
+
+### CI
+
+`.github/workflows/ci.yml` runs both of the lint/build steps above on every
+push and pull request against `main` — no pytest suite, by the same
+"`test_samples/` is the testing story" decision explained below.
 
 ## Test samples
 
