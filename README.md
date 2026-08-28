@@ -268,6 +268,38 @@ client ID is public by design — it identifies the application to Google and is
 in the browser — which is why it is the one auth value safe to send to the frontend
 (via `GET /api/auth/config`).
 
+## Disposable email addresses
+
+Accounts cannot be opened behind a throwaway mailbox. `POST /api/auth/register` answers
+an address at a known disposable provider with **422** and the code
+`DISPOSABLE_EMAIL_DOMAIN`, and the Google path refuses the same domains at the moment it
+would create an account.
+
+The domain list comes from the community-maintained
+[disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains)
+project (CC0, public domain) and is **vendored** into
+`app/src/main/resources/disposable-email-domains.txt` rather than fetched at runtime.
+That is the whole design decision: signing up must not depend on a third-party host being
+reachable, and a network blip must never quietly degrade into accepting every address.
+The trade-off — a vendored copy goes stale — is what the refresh workflow under CI covers.
+An empty or missing list is fatal at startup rather than tolerated, because booting with
+the check silently switched off is the one failure mode nobody would notice.
+
+Matching walks the domain's parent suffixes, so a listed provider also covers hosts
+beneath it (`inbox.mailinator.com` is caught by the `mailinator.com` entry). The walk
+stops before the final label, so no entry can ever blocklist a whole TLD. That also keeps
+shared dynamic-DNS parents intact: upstream lists individual hostnames such as
+`0-mailer.dynv6.net` and never `dynv6.net` itself, so an ordinary home server on that same
+parent still registers normally.
+
+Two things this deliberately does **not** do:
+
+- **It doesn't touch login.** Only account *creation* is refused. An account that already
+  exists keeps signing in, because locking people out of accounts they already hold is a
+  different decision from declining to open new ones.
+- **It isn't a scoring signal.** This is a signup policy, not a phishing verdict — a
+  scanned message sent from a disposable domain is unaffected and scores exactly as before.
+
 ## Single-Folder Setup and Run
 
 Everything lives inside `app/`.
@@ -313,3 +345,15 @@ docker run -p 8080:8080 mailsentinel
 
 `.github/workflows/ci.yml` builds the React frontend, runs linter checks, and executes the
 full Maven test suite on every push and pull request against `main`.
+
+`.github/workflows/refresh-disposable-domains.yml` re-fetches the vendored disposable-email
+blocklist from upstream every Monday (and on demand via **Run workflow**) and opens a pull
+request when it has changed. Nothing lands on `main` unattended: the refreshed list has to
+survive a sanity check — plausible size, bare-domain syntax, no drop of more than 10% of
+entries — and then `DisposableEmailDomainServiceTest`, before a PR is raised for review.
+Removed entries are worth a skim on that PR, since a domain leaving the list becomes able
+to register again.
+
+> Opening that PR needs **Settings → Actions → General → Allow GitHub Actions to create and
+> approve pull requests** enabled on the repository; without it the job fails at the final
+> step with a permissions error.
