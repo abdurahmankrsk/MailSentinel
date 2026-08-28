@@ -102,4 +102,9 @@ class ScanPipelineTest {
         // Should produce structured check results without errors
         assertFalse(response.checks().isEmpty());
     }
+
+    @Test
+    void testUnknownScanTypeIsRejectedRatherThanSilentlyTreatedAsUrl() {
+        assertThrows(IllegalArgumentException.class, () -> scoringService.runScan("banana", "https://paypal.com"));
+    }
 }

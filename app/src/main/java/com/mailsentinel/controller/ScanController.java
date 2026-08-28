@@ -29,6 +29,9 @@ public class ScanController {
         if (request == null || request.type() == null || request.content() == null || request.content().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing type or content");
         }
+        if (!"email".equals(request.type()) && !"url".equals(request.type())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type must be 'email' or 'url'");
+        }
         return scoringService.runScan(request.type(), request.content());
     }
 }

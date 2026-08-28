@@ -128,9 +128,12 @@ public class ScoringService {
     }
 
     public ScanResponse runScan(String type, String content) {
-        if ("email".equalsIgnoreCase(type)) {
+        if ("email".equals(type)) {
             return scanEmail(content);
         }
-        return scanUrl(content);
+        if ("url".equals(type)) {
+            return scanUrl(content);
+        }
+        throw new IllegalArgumentException("Unknown scan type: " + type);
     }
 }
