@@ -21,7 +21,7 @@ from lxml import html as lxml_html
 from .constants import SHORTENER_DOMAINS, WEIGHTS
 from .lookalike import analyze_domain
 from .models import CheckResult
-from .url_utils import extract_hostname, registrable_domain
+from .url_utils import extract_hostname, is_ip_literal, registrable_domain
 
 _URL_RE = re.compile(r"https?://[^\s<>\"')\]]+", re.IGNORECASE)
 _URL_LIKE_RE = re.compile(r"^(https?://)?[\w-]+(\.[\w-]+)+", re.IGNORECASE)
@@ -74,6 +74,7 @@ def analyze_links(links: list[ExtractedLink]) -> list[CheckResult]:
     lookalike_hits: list[str] = []
     shortener_hits: list[str] = []
     mismatch_hits: list[str] = []
+    ip_host_hits: list[str] = []
 
     for link in links:
         hostname = extract_hostname(link.href)
@@ -86,6 +87,9 @@ def analyze_links(links: list[ExtractedLink]) -> list[CheckResult]:
 
         if domain in SHORTENER_DOMAINS or hostname.lower() in SHORTENER_DOMAINS:
             shortener_hits.append(link.href)
+
+        if is_ip_literal(hostname):
+            ip_host_hits.append(link.href)
 
         if link.anchor_text and _looks_like_url_or_domain(link.anchor_text):
             anchor_host = extract_hostname(link.anchor_text)
@@ -115,5 +119,12 @@ def analyze_links(links: list[ExtractedLink]) -> list[CheckResult]:
             weight=WEIGHTS["anchor_mismatch"],
             detail="; ".join(mismatch_hits) if mismatch_hits
             else "No anchor text found that names a different domain than its link target",
+        ),
+        CheckResult(
+            name="Raw IP address as link host",
+            passed=not ip_host_hits,
+            weight=WEIGHTS["ip_hostname"],
+            detail=(f"Link(s) use a raw IP address instead of a domain: {', '.join(ip_host_hits)}"
+                    if ip_host_hits else "No links use a raw IP address as the host"),
         ),
     ]

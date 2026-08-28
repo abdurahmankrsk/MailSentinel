@@ -8,6 +8,7 @@ verify-account.ru, not paypal.com.
 """
 from __future__ import annotations
 
+import ipaddress
 from urllib.parse import urlsplit
 
 import tldextract
@@ -40,3 +41,12 @@ def registrable_domain(hostname: str) -> str:
     if parts.domain and parts.suffix:
         return f"{parts.domain}.{parts.suffix}".lower()
     return hostname.lower()
+
+
+def is_ip_literal(hostname: str) -> bool:
+    """Check 5: is this host a raw IP address instead of a domain name."""
+    try:
+        ipaddress.ip_address(hostname.strip("[]"))  # IPv6 URL literals are bracketed
+        return True
+    except ValueError:
+        return False
