@@ -19,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -39,6 +41,8 @@ class AiAnalysisServiceTest {
     private UsageService usageService;
     private IdempotencyService idempotencyService;
     private AiProvider aiProvider;
+    private AiKeyService aiKeyService;
+    private AiProviderFactory aiProviderFactory;
     private AiAnalysisService service;
 
     private static final Long USER_ID = 42L;
@@ -49,8 +53,14 @@ class AiAnalysisServiceTest {
         usageService = mock(UsageService.class);
         idempotencyService = mock(IdempotencyService.class);
         aiProvider = mock(AiProvider.class);
+        aiKeyService = mock(AiKeyService.class);
+        aiProviderFactory = mock(AiProviderFactory.class);
+        // Every test below exercises the existing Plan-gated path; a BYOK key would
+        // short-circuit it entirely, so default to "no key configured" here and let
+        // the dedicated BYOK tests below override this per-test.
+        when(aiKeyService.activeKeyFor(any())).thenReturn(Optional.empty());
         service = new AiAnalysisService(subscriptionService, usageService, idempotencyService, aiProvider,
-                new ObjectMapper(), 35, 4);
+                aiKeyService, aiProviderFactory, new ObjectMapper(), 35, 4);
     }
 
     // The public constructor doesn't accept an id (JPA generates it); reflection sets
@@ -113,7 +123,7 @@ class AiAnalysisServiceTest {
 
         ScanResponse result = service.analyze(user, "email", "content", deterministic(), null);
 
-        verify(aiProvider, never()).analyze(any());
+        verify(aiProvider, never()).analyze(any(), any());
         assertEquals(AiAnalysisStatus.AI_SCAN_LIMIT_REACHED, result.aiAnalysis().status());
         assertEquals(0, result.aiAnalysis().scansRemaining());
         assertEquals(deterministic().score(), result.score(), "score must stay deterministic-only when the AI never ran");
@@ -125,7 +135,7 @@ class AiAnalysisServiceTest {
         when(subscriptionService.currentPlan(USER_ID)).thenReturn(Plan.PREMIUM);
         UsagePeriod period = newPeriod(1000);
         when(usageService.reserveOneScan(USER_ID)).thenReturn(new ReservationResult.Reserved(period));
-        when(aiProvider.analyze(any())).thenThrow(new AiProviderException("boom"));
+        when(aiProvider.analyze(any(), any())).thenThrow(new AiProviderException("boom"));
 
         ScanResponse result = service.analyze(user, "email", "content", deterministic(), null);
 
@@ -140,7 +150,7 @@ class AiAnalysisServiceTest {
         when(subscriptionService.currentPlan(USER_ID)).thenReturn(Plan.PREMIUM);
         UsagePeriod period = newPeriod(1000);
         when(usageService.reserveOneScan(USER_ID)).thenReturn(new ReservationResult.Reserved(period));
-        when(aiProvider.analyze(any())).thenReturn(new AiAnalysisResult(
+        when(aiProvider.analyze(any(), any())).thenReturn(new AiAnalysisResult(
                 "Looks suspicious.", List.of(new AiFinding("Urgency language", 15, "Pressure tactics detected."))));
 
         ScanResponse result = service.analyze(user, "email", "content", deterministic(), null);
@@ -159,7 +169,7 @@ class AiAnalysisServiceTest {
         UsagePeriod period = newPeriod(1000);
         when(usageService.reserveOneScan(USER_ID)).thenReturn(new ReservationResult.Reserved(period));
         // The model returns a wildly high weight -- must be clamped, never trusted raw.
-        when(aiProvider.analyze(any())).thenReturn(new AiAnalysisResult(
+        when(aiProvider.analyze(any(), any())).thenReturn(new AiAnalysisResult(
                 "Extremely suspicious.", List.of(new AiFinding("Everything is wrong", 9999, "Trust me."))));
 
         ScanResponse result = service.analyze(user, "email", "content", deterministic(), null);
@@ -173,7 +183,7 @@ class AiAnalysisServiceTest {
         when(subscriptionService.currentPlan(USER_ID)).thenReturn(Plan.PREMIUM);
         UsagePeriod period = newPeriod(1000);
         when(usageService.reserveOneScan(USER_ID)).thenReturn(new ReservationResult.Reserved(period));
-        when(aiProvider.analyze(any())).thenReturn(new AiAnalysisResult("Mixed bag.", List.of(
+        when(aiProvider.analyze(any(), any())).thenReturn(new AiAnalysisResult("Mixed bag.", List.of(
                 new AiFinding(null, 10, "missing name -- dropped"),
                 new AiFinding("no weight", null, "missing weight -- dropped"),
                 new AiFinding("ok1", 5, "kept"),
@@ -252,11 +262,44 @@ class AiAnalysisServiceTest {
         when(subscriptionService.currentPlan(USER_ID)).thenReturn(Plan.PREMIUM);
         UsagePeriod period = newPeriod(1000);
         when(usageService.reserveOneScan(USER_ID)).thenReturn(new ReservationResult.Reserved(period));
-        when(aiProvider.analyze(any())).thenReturn(new AiAnalysisResult("ok", List.of()));
+        when(aiProvider.analyze(any(), any())).thenReturn(new AiAnalysisResult("ok", List.of()));
 
         ScanResponse result = service.analyze(user, "email", "content", deterministic(), null);
 
         verifyNoInteractions(idempotencyService);
         assertEquals(AiAnalysisStatus.AI_ANALYSIS_COMPLETED, result.aiAnalysis().status());
+    }
+
+    @Test
+    void ownKeyRunsAiOnFreePlanWithoutTouchingUsageOrIdempotency() throws Exception {
+        User user = userWith(USER_ID);
+        ActiveAiKey ownKey = new ActiveAiKey("https://api.groq.com/openai/v1", "llama-3.3-70b-versatile", "user-supplied-key");
+        AiProvider ownProvider = mock(AiProvider.class);
+        when(aiKeyService.activeKeyFor(USER_ID)).thenReturn(Optional.of(ownKey));
+        when(aiProviderFactory.create(ownKey.baseUrl(), ownKey.model(), ownKey.apiKey())).thenReturn(ownProvider);
+        when(ownProvider.analyze(any(), isNull())).thenReturn(new AiAnalysisResult(
+                "Looks suspicious.", List.of(new AiFinding("Urgency language", 15, "Pressure tactics detected."))));
+
+        ScanResponse result = service.analyze(user, "email", "content", deterministic(), "some-key");
+
+        assertEquals(AiAnalysisStatus.AI_ANALYSIS_COMPLETED, result.aiAnalysis().status());
+        assertEquals(18 + 15, result.score(), "own-key findings still contribute to score the same way");
+        verifyNoInteractions(subscriptionService, usageService, idempotencyService, aiProvider);
+    }
+
+    @Test
+    void ownKeyProviderFailureReportsErrorWithoutTouchingUsage() throws Exception {
+        User user = userWith(USER_ID);
+        ActiveAiKey ownKey = new ActiveAiKey("https://api.example.com/v1", "some-model", "bad-key");
+        AiProvider ownProvider = mock(AiProvider.class);
+        when(aiKeyService.activeKeyFor(USER_ID)).thenReturn(Optional.of(ownKey));
+        when(aiProviderFactory.create(ownKey.baseUrl(), ownKey.model(), ownKey.apiKey())).thenReturn(ownProvider);
+        when(ownProvider.analyze(any(), isNull())).thenThrow(new AiProviderException("invalid key"));
+
+        ScanResponse result = service.analyze(user, "email", "content", deterministic(), null);
+
+        assertEquals(AiAnalysisStatus.AI_PROVIDER_ERROR, result.aiAnalysis().status());
+        assertEquals(deterministic().score(), result.score(), "score stays deterministic-only when the own-key call fails");
+        verifyNoInteractions(subscriptionService, usageService, idempotencyService, aiProvider);
     }
 }
