@@ -30,6 +30,11 @@ public final class ScoringConstants {
         Map.entry("char_substitution", 58),
         Map.entry("homoglyph", 70),
         Map.entry("tld_swap", 45),
+        // Brand name in a subdomain of an unrelated registrable domain. Solo-red, and
+        // pitched at anchor_mismatch's weight because it is the same deception: the
+        // thing a human reads names one destination while the real one is elsewhere.
+        // Unlike a display name, a hostname has no legitimate reason to do this.
+        Map.entry("brand_subdomain", 62),
         // Display name naming a brand the sending domain doesn't back up. Deliberately
         // "strong" rather than "solo-red": a display name can legitimately mention a
         // brand it isn't (a partner newsletter, a training provider), so this lands at
