@@ -33,6 +33,19 @@ Thumbs.db
 .impeccable/
 skills-lock.json
 
-# Env files
+# Secrets -- this project needs none (no external API keys, no DB), but
+# ignore common secret-carrying files/patterns defensively anyway.
 .env
-.env.local
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+id_rsa
+id_ed25519
+*credentials*.json
+*service-account*.json
+secrets.json
+*.secrets
