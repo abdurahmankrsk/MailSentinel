@@ -5,6 +5,7 @@ import com.mailsentinel.dto.*;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,9 @@ import java.util.Map;
  */
 @Service
 public class ScoringService {
+
+    /** Sanity bound on a single paste, so a huge dump can't turn into unbounded work. */
+    private static final int MAX_URLS_PER_SCAN = 50;
 
     private static final Map<String, String> LOOKALIKE_LABELS = new LinkedHashMap<>() {{
         put("edit_distance", "edit-distance");
@@ -134,16 +138,86 @@ public class ScoringService {
         return finalizeScore(checks);
     }
 
+    /**
+     * Split pasted input into individual links.
+     *
+     * People paste what they copied, which is rarely one tidy URL: it arrives one per
+     * line, separated by spaces, or with stray blank lines between. Anything that
+     * isn't whitespace counts as a candidate and gets scored on its own.
+     */
+    private List<String> splitUrls(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(raw.trim().split("\\s+"))
+            .filter(s -> !s.isBlank())
+            .limit(MAX_URLS_PER_SCAN)
+            .toList();
+    }
+
+    /**
+     * One check per technique across every pasted link, rather than a full check list
+     * per link: twenty links would otherwise produce a hundred rows to read. The
+     * detail names exactly which links tripped it.
+     */
+    private CheckResult aggregate(String name, String weightKey, List<String> hits, String passedDetail) {
+        return new CheckResult(
+            name,
+            hits.isEmpty(),
+            ScoringConstants.getWeight(weightKey),
+            hits.isEmpty() ? passedDetail : String.join("; ", hits)
+        );
+    }
+
     public ScanResponse scanUrl(String raw) {
-        String hostname = UrlUtils.extractHostname(raw);
-        if (hostname == null || hostname.isBlank()) {
-            hostname = raw != null ? raw.trim() : "";
+        List<String> urls = splitUrls(raw);
+        if (urls.isEmpty()) {
+            urls = List.of(raw == null ? "" : raw.trim());
         }
 
+        // Every hostname is resolved once and reused by all the checks below.
+        Map<String, String> hostByUrl = new LinkedHashMap<>();
+        for (String url : urls) {
+            String hostname = UrlUtils.extractHostname(url);
+            hostByUrl.put(url, hostname == null || hostname.isBlank() ? url : hostname);
+        }
+
+        Map<String, List<String>> lookalikeHits = new LinkedHashMap<>();
+        List<String> ipHits = new ArrayList<>();
+        List<String> shortenerHits = new ArrayList<>();
+
+        for (Map.Entry<String, String> entry : hostByUrl.entrySet()) {
+            String url = entry.getKey();
+            String hostname = entry.getValue();
+
+            for (LookalikeFinding finding : lookalikeDetector.analyzeDomain(hostname)) {
+                lookalikeHits
+                    .computeIfAbsent(finding.technique(), k -> new ArrayList<>())
+                    .add(finding.detail());
+            }
+            if (UrlUtils.isIpLiteral(hostname)) {
+                ipHits.add(url + " uses a raw IP address instead of a domain name");
+            }
+            if (UrlUtils.isShortener(hostname)) {
+                shortenerHits.add(url + " is a shortener, so its real destination stays hidden until it is opened");
+            }
+        }
+
+        String scope = urls.size() == 1 ? hostByUrl.values().iterator().next() : urls.size() + " links";
+
         List<CheckResult> checks = new ArrayList<>();
-        checks.addAll(domainLookalikeChecks(hostname, "URL domain"));
-        checks.add(ipHostnameCheck("Raw IP address as hostname", hostname));
-        checks.add(shortenerCheck(hostname));
+        for (Map.Entry<String, String> entry : LOOKALIKE_LABELS.entrySet()) {
+            checks.add(aggregate(
+                "URL domain " + entry.getValue(),
+                entry.getKey(),
+                lookalikeHits.getOrDefault(entry.getKey(), List.of()),
+                "No " + entry.getValue() + " pattern detected for " + scope
+            ));
+        }
+        checks.add(aggregate("Raw IP address as hostname", "ip_hostname", ipHits,
+            "No link uses a raw IP address as the host"));
+        checks.add(aggregate("URL shortener", "url_shortener", shortenerHits,
+            "No link uses a known URL shortener"));
 
         return finalizeScore(checks);
     }
