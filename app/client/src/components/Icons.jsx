@@ -51,6 +51,19 @@ export function ShieldScanIcon(props) {
   )
 }
 
+// The overflow menu people are told to open in their mail client. Drawn as three
+// zero-length round-capped strokes rather than filled circles, so it keeps the same
+// weight as the rest of the set (the same way FlagIcon draws its dot).
+export function MoreVerticalIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="M12 5v.01" />
+      <path d="M12 12v.01" />
+      <path d="M12 19v.01" />
+    </Svg>
+  )
+}
+
 export function CloseIcon(props) {
   return (
     <Svg {...props}>
