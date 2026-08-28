@@ -103,6 +103,45 @@ class ScanPipelineTest {
         assertFalse(response.checks().isEmpty());
     }
 
+    private ScanResponse scanFrom(String fromHeader, String extraHeaders) {
+        return scoringService.scanEmail(
+            "From: " + fromHeader + "\r\n"
+                + "To: user@example.com\r\n"
+                + "Subject: test\r\n"
+                + extraHeaders
+                + "\r\n"
+                + "Body text.");
+    }
+
+    private boolean impersonationFlagged(ScanResponse response) {
+        return response.checks().stream()
+            .anyMatch(c -> c.name().contains("display name impersonation") && !c.passed());
+    }
+
+    @Test
+    void displayNameNamingAnUnrelatedBrandIsFlagged() {
+        // The domain resembles no brand at all, so every distance-based technique
+        // scores it zero -- the display name is the only thing carrying the lie.
+        assertTrue(impersonationFlagged(scanFrom("Microsoft 365 <no-reply@m365-account-security.com>", "")));
+    }
+
+    @Test
+    void displayNameMatchingItsOwnSendingDomainIsNotFlagged() {
+        assertFalse(impersonationFlagged(scanFrom("GitHub <notifications@github.com>", "")));
+    }
+
+    @Test
+    void brandNameEmbeddedInAnUnrelatedWordIsNotFlagged() {
+        // "Pineapple" contains "apple" and "Groups" contains "ups"; neither is a
+        // brand claim, and matching them would fire on ordinary mail.
+        assertFalse(impersonationFlagged(scanFrom("Pineapple Groups <hello@pineapple-groups.example>", "")));
+    }
+
+    @Test
+    void multiWordBrandNameIsStillMatchedAcrossSpaces() {
+        assertTrue(impersonationFlagged(scanFrom("Bank of America Alerts <alerts@secure-notice.example>", "")));
+    }
+
     @Test
     void testUnknownScanTypeIsRejectedRatherThanSilentlyTreatedAsUrl() {
         assertThrows(IllegalArgumentException.class, () -> scoringService.runScan("banana", "https://paypal.com"));

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.net.IDN;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Lookalike and typosquat detection against the BrandConstants target list.
@@ -16,11 +17,23 @@ import java.util.*;
  *   - char substitution:  digits/letter-runs standing in for similar letters (0->o, 1->l, rn->m)
  *   - homoglyphs:         non-Latin letters visually identical to Latin (Cyrillic а/е/о/р/с/etc.), Punycode (xn--)
  *   - TLD swap:           exact brand name with wrong top-level domain
+ *
+ * Plus a fifth, domain-independent technique -- display-name impersonation -- which
+ * catches the case the four above structurally cannot: an attacker on a domain that
+ * resembles no brand at all (secure-docs-exchange.com) simply *naming* one in the
+ * From header, which is the half a mail client shows the reader by default.
  */
 @Service
 public class LookalikeDetector {
 
     private static final int MAX_EDIT_DISTANCE = 2;
+
+    /**
+     * Below this length a brand label is only matched on whole-word boundaries, never
+     * inside a run of squashed characters: "ups" would otherwise match "Groups" and
+     * "apple" would match "Pineapple Co" once separators are stripped.
+     */
+    private static final int MIN_COMPACT_LABEL_LENGTH = 8;
     private static final LevenshteinDistance LEVENSHTEIN = LevenshteinDistance.getDefaultInstance();
 
     private static final List<Map.Entry<String, String>> SUBSTITUTIONS = List.of(
@@ -210,6 +223,54 @@ public class LookalikeDetector {
             }
         }
         return null;
+    }
+
+    /**
+     * Does the From display name claim a brand that the sending domain doesn't back up?
+     *
+     * "Microsoft 365" &lt;no-reply@m365-account-security.com&gt; is the whole attack in one
+     * line: nothing about the domain resembles microsoft.com, so every distance-based
+     * technique above scores it zero, while the recipient's mail client shows them the
+     * word "Microsoft". A display name that names the brand it is actually sent from
+     * (GitHub &lt;notifications@github.com&gt;) is the normal, legitimate case and passes.
+     */
+    public LookalikeFinding checkDisplayNameImpersonation(String displayName, String senderDomain) {
+        if (displayName == null || displayName.isBlank()) {
+            return null;
+        }
+        String lowerName = displayName.toLowerCase(Locale.ROOT);
+        String compactName = lowerName.replaceAll("[^a-z0-9]", "");
+        String domain = UrlUtils.registrableDomain(senderDomain);
+
+        List<String> namedBrands = new ArrayList<>();
+        for (String brand : BrandConstants.BRAND_DOMAINS) {
+            String label = brand.split("\\.", 2)[0];
+            boolean namesBrand =
+                Pattern.compile("\\b" + Pattern.quote(label) + "\\b").matcher(lowerName).find()
+                || (label.length() >= MIN_COMPACT_LABEL_LENGTH && compactName.contains(label));
+            if (namesBrand) {
+                namedBrands.add(brand);
+            }
+        }
+
+        if (namedBrands.isEmpty()) {
+            return null;
+        }
+        // Sent from any one of the brands it names -- that's just correctly-branded mail.
+        for (String brand : namedBrands) {
+            if (domain.equalsIgnoreCase(brand)) {
+                return null;
+            }
+        }
+
+        String claimed = namedBrands.get(0);
+        return new LookalikeFinding(
+            "display_name_impersonation",
+            claimed,
+            "From display name \"" + displayName + "\" names " + claimed
+                + ", but the message was actually sent from "
+                + (domain.isBlank() ? "an unknown domain" : domain)
+        );
     }
 
     public List<LookalikeFinding> analyzeDomain(String hostname) {

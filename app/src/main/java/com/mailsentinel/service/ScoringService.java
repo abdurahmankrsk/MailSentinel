@@ -69,6 +69,19 @@ public class ScoringService {
         return checks;
     }
 
+    private CheckResult displayNameImpersonationCheck(String displayName, String senderDomain) {
+        LookalikeFinding finding = lookalikeDetector.checkDisplayNameImpersonation(displayName, senderDomain);
+        String passedDetail = displayName == null || displayName.isBlank()
+            ? "From header has no display name to compare against the sending domain"
+            : "Display name \"" + displayName + "\" does not claim a brand other than " + senderDomain;
+        return new CheckResult(
+            "Sender display name impersonation",
+            finding == null,
+            ScoringConstants.getWeight("display_name_impersonation"),
+            finding != null ? finding.detail() : passedDetail
+        );
+    }
+
     private CheckResult ipHostnameCheck(String name, String hostname) {
         boolean flagged = hostname != null && UrlUtils.isIpLiteral(hostname);
         return new CheckResult(
@@ -97,6 +110,9 @@ public class ScoringService {
 
         // 3. Sender domain lookalike checks
         checks.addAll(domainLookalikeChecks(senderDomain, "Sender domain"));
+
+        // 3b. Display name claiming a brand the sending domain doesn't back up
+        checks.add(displayNameImpersonationCheck(parsed.senderDisplayName(), senderDomain));
 
         // 4. In-body link analysis
         List<ExtractedLink> links = linkAnalysisService.extractLinks(parsed.textBody(), parsed.htmlBody());

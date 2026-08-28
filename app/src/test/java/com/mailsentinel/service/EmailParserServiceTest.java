@@ -4,6 +4,7 @@ import com.mailsentinel.dto.ParsedEmail;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class EmailParserServiceTest {
 
@@ -42,5 +43,18 @@ class EmailParserServiceTest {
     void bareAddressWithoutDisplayNameStillParses() {
         ParsedEmail parsed = parser.parseEmail(email("security@paypal.com <phisher@evil-domain.ru>"));
         assertEquals("evil-domain.ru", parsed.senderDomain());
+    }
+
+    @Test
+    void displayNameIsCapturedSeparatelyFromTheAddress() {
+        ParsedEmail parsed = parser.parseEmail(email("Microsoft 365 <no-reply@m365-account-security.com>"));
+        assertEquals("Microsoft 365", parsed.senderDisplayName());
+        assertEquals("m365-account-security.com", parsed.senderDomain());
+    }
+
+    @Test
+    void addressWithNoDisplayNameLeavesDisplayNameNull() {
+        ParsedEmail parsed = parser.parseEmail(email("<notifications@github.com>"));
+        assertNull(parsed.senderDisplayName());
     }
 }

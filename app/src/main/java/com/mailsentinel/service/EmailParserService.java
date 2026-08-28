@@ -26,7 +26,7 @@ public class EmailParserService {
 
     public ParsedEmail parseEmail(String raw) {
         if (raw == null || raw.isBlank()) {
-            return new ParsedEmail(null, null, null, null);
+            return new ParsedEmail(null, null, null, null, null);
         }
 
         try {
@@ -54,6 +54,7 @@ public class EmailParserService {
             // quoting and always resolves to the bracketed address, not the first
             // "word@word" substring encountered while scanning the raw header text.
             String senderDomain = null;
+            String senderDisplayName = null;
             try {
                 Address[] fromAddresses = message.getFrom();
                 if (fromAddresses != null && fromAddresses.length > 0
@@ -62,6 +63,13 @@ public class EmailParserService {
                     int at = address == null ? -1 : address.lastIndexOf('@');
                     if (at >= 0 && at < address.length() - 1) {
                         senderDomain = address.substring(at + 1).trim().toLowerCase(Locale.ROOT);
+                    }
+                    // The display name is the half a mail client shows most prominently and
+                    // the half an attacker controls freely, so it's captured separately for
+                    // the impersonation check rather than folded into the address above.
+                    String personal = internetAddress.getPersonal();
+                    if (personal != null && !personal.isBlank()) {
+                        senderDisplayName = personal.trim();
                     }
                 }
             } catch (Exception ignored) {}
@@ -84,12 +92,13 @@ public class EmailParserService {
             return new ParsedEmail(
                 authResults,
                 senderDomain,
+                senderDisplayName,
                 acc.textBody,
                 acc.htmlBody
             );
         } catch (Exception e) {
             // Fallback for non-compliant or partial raw text
-            return new ParsedEmail(null, null, raw, null);
+            return new ParsedEmail(null, null, null, raw, null);
         }
     }
 

@@ -30,6 +30,11 @@ public final class ScoringConstants {
         Map.entry("char_substitution", 58),
         Map.entry("homoglyph", 70),
         Map.entry("tld_swap", 45),
+        // Display name naming a brand the sending domain doesn't back up. Deliberately
+        // "strong" rather than "solo-red": a display name can legitimately mention a
+        // brand it isn't (a partner newsletter, a training provider), so this lands at
+        // medium on its own and only reaches red alongside a second signal.
+        Map.entry("display_name_impersonation", 45),
         // Authentication-Results header (claimed)
         Map.entry("spf_claimed", 22),
         Map.entry("dkim_claimed", 30),
