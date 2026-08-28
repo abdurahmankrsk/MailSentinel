@@ -2,17 +2,62 @@
 // ScanPipelineTest, which both treat >= 60 as high risk), so it belongs in the red
 // band rather than at the top of the yellow one.
 function bandFor(score) {
-  if (score < 30) return { label: 'Low risk', className: 'score-green' }
-  if (score < 60) return { label: 'Medium risk', className: 'score-yellow' }
-  return { label: 'High risk', className: 'score-red' }
+  if (score < 30) {
+    return {
+      key: 'low',
+      label: 'Low risk',
+      note: 'Nothing here crosses the threshold for concern.',
+    }
+  }
+  if (score < 60) {
+    return {
+      key: 'medium',
+      label: 'Medium risk',
+      note: 'Weak signals are stacking up. Worth a second look before you act on this.',
+    }
+  }
+  return {
+    key: 'high',
+    label: 'High risk',
+    note: 'Treat this as hostile. Do not click anything in the message or reply to it.',
+  }
 }
 
 export default function ScoreDisplay({ score }) {
   const band = bandFor(score)
+
   return (
-    <div className={`score-display ${band.className}`}>
-      <div className="score-number">{score}</div>
-      <div className="score-label">{band.label}</div>
-    </div>
+    <section className="verdict" data-band={band.key}>
+      <div className="verdict-head">
+        <p className="verdict-score">
+          {score}
+          <span className="verdict-max">/100</span>
+        </p>
+        <p className="verdict-band" id="verdict-band">{band.label}</p>
+      </div>
+
+      {/* The thresholds are drawn on the track rather than left implicit, so the
+          number is readable as a position between two boundaries, not just a value. */}
+      <div className="meter">
+        <div
+          className="meter-track"
+          role="meter"
+          aria-valuenow={score}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-labelledby="verdict-band"
+        >
+          <div className="meter-fill" style={{ width: `${score}%` }} />
+          <span className="meter-threshold" style={{ left: '30%' }} />
+          <span className="meter-threshold" style={{ left: '60%' }} />
+        </div>
+        <div className="meter-scale" aria-hidden="true">
+          <span className="meter-mark" style={{ left: '30%' }}>30</span>
+          <span className="meter-mark" style={{ left: '60%' }}>60</span>
+        </div>
+      </div>
+
+      <p className="verdict-note">{band.note}</p>
+    </section>
   )
 }
