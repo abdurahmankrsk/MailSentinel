@@ -44,7 +44,7 @@ class GeminiAiProviderTest {
                 + new ObjectMapper().writeValueAsString(innerJson) + "}]}}]}";
         server.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/json"));
 
-        AiAnalysisResult result = provider.analyze(sampleRequest());
+        AiAnalysisResult result = provider.analyze(sampleRequest(), null);
 
         assertEquals("Suspicious login page.", result.summary());
         assertEquals(1, result.findings().size());
@@ -56,7 +56,7 @@ class GeminiAiProviderTest {
         String body = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{\\\"summary\\\":\\\"ok\\\",\\\"findings\\\":[]}\"}]}}]}";
         server.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/json"));
 
-        provider.analyze(sampleRequest());
+        provider.analyze(sampleRequest(), null);
 
         RecordedRequest recorded = server.takeRequest();
         assertTrue(recorded.getPath().contains("key=test-key"));
@@ -69,24 +69,35 @@ class GeminiAiProviderTest {
     @Test
     void throwsOnNon2xxStatus() {
         server.enqueue(new MockResponse().setResponseCode(429).setBody("rate limited"));
-        assertThrows(AiProviderException.class, () -> provider.analyze(sampleRequest()));
+        assertThrows(AiProviderException.class, () -> provider.analyze(sampleRequest(), null));
     }
 
     @Test
     void throwsOnEmptyCandidates() {
         server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"candidates\":[]}"));
-        assertThrows(AiProviderException.class, () -> provider.analyze(sampleRequest()));
+        assertThrows(AiProviderException.class, () -> provider.analyze(sampleRequest(), null));
     }
 
     @Test
     void throwsWhenInnerTextIsNotValidJson() {
         String body = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"not json at all\"}]}}]}";
         server.enqueue(new MockResponse().setResponseCode(200).setBody(body));
-        assertThrows(AiProviderException.class, () -> provider.analyze(sampleRequest()));
+        assertThrows(AiProviderException.class, () -> provider.analyze(sampleRequest(), null));
     }
 
     @Test
     void providerNameIsGemini() {
         assertEquals("gemini", provider.providerName());
+    }
+
+    @Test
+    void overrideApiKeyIsUsedInsteadOfTheConfiguredOne() throws Exception {
+        String body = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{\\\"summary\\\":\\\"ok\\\",\\\"findings\\\":[]}\"}]}}]}";
+        server.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/json"));
+
+        provider.analyze(sampleRequest(), "byok-override-key");
+
+        RecordedRequest recorded = server.takeRequest();
+        assertTrue(recorded.getPath().contains("key=byok-override-key"));
     }
 }
