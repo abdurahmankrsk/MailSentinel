@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+import lxml.etree
 from lxml import html as lxml_html
 
 from .constants import SHORTENER_DOMAINS, WEIGHTS
@@ -37,7 +38,7 @@ def _extract_from_html(html_body: str) -> list[ExtractedLink]:
     links: list[ExtractedLink] = []
     try:
         tree = lxml_html.fromstring(html_body)
-    except Exception:
+    except lxml.etree.LxmlError:
         return links
     for anchor in tree.iter("a"):
         href = anchor.get("href")
