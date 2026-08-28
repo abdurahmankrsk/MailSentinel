@@ -67,7 +67,7 @@ accident, not the formula:
 | Tier | Weight range | Signals |
 |---|---|---|
 | Solo-red | 55–70 | domain homoglyph, domain edit-distance match, raw IP as a link host, anchor-text/href mismatch, character substitution |
-| Strong | 45–55 | a lookalike link elsewhere in the body, a TLD swap |
+| Strong | 45–55 | a lookalike link elsewhere in the body, a TLD swap, a display name claiming a brand the sending domain doesn't back up |
 | Medium/weak | 9–30 | missing or unenforced DMARC, missing SPF, a claimed auth failure, a claimed-vs-live disagreement, a URL shortener |
 
 A single "solo-red" hit alone crosses the 60-point red threshold. Several
@@ -124,6 +124,16 @@ to `p=none` — that disagreement is surfaced as its own signal. That
 combination shouldn't be possible from a legitimate receiving server, so it's
 a meaningful tell that the header itself may not be trustworthy.
 
+One distinction matters more than it looks: **a lookup that didn't complete is not
+the same as a domain that publishes nothing.** A timeout, a SERVFAIL, or a resolver
+hiccup all produce an empty answer that is indistinguishable, at the call site, from
+a genuine "no such record" — and scoring the two the same way means a legitimate
+sender gets penalised for our own transient network trouble, non-deterministically.
+So `LiveDnsResult` carries an explicit *resolved* flag per lookup, and an unresolved
+lookup scores as neutral (the check passes, with a detail saying why) rather than as
+a missing record. The same flag stops the agreement check above from manufacturing a
+"header claims pass but DNS disagrees" finding out of a query that never got an answer.
+
 ### 3. Lookalike domain detection
 
 *Code: `LookalikeDetector.java`, target list in `BrandConstants.java`*
@@ -160,6 +170,20 @@ different ways and no single technique catches all of them:
   to be separate from edit distance: `chase.net` is 3 edits away from
   `chase.com` (too far for the distance-2 threshold) but is an obvious swap
   once you compare the brand label on its own.
+
+A fifth technique covers the case the four above structurally cannot:
+
+- **Display-name impersonation.** All four techniques above compare *domains*, so an
+  attacker who registers something that resembles no brand at all — `m365-account-
+  security.com`, `secure-docs-exchange.com` — scores zero on every one of them, while
+  the recipient's mail client happily shows them the words "Microsoft 365". So the
+  From display name is checked against the brand list independently: naming a brand
+  the sending domain doesn't back up is the finding. Mail that names the brand it is
+  actually sent from (`GitHub <notifications@github.com>`) is the normal case and
+  passes. Short brand labels are matched only on whole-word boundaries so "Pineapple"
+  doesn't read as `apple` and "Groups" doesn't read as `ups`, while longer labels are
+  also matched across separators so "Bank of America" still resolves to
+  `bankofamerica.com`.
 
 Domain parsing throughout uses Guava's `InternetDomainName` against the Public Suffix List
 rather than a naive `.split(".")`, which correctly strips subdomains and resolves
@@ -207,9 +231,49 @@ CORS is wide open (`@CrossOrigin(origins = "*")`) on purpose. That's safe
 because there are no cookies, sessions, or credentials anywhere in this API,
 and it allows browser extensions to call it directly in the future.
 
+## Sign-in and Google OAuth
+
+Accounts are optional: anonymous scanning is unchanged and needs no login. The header
+carries `Log in` / `Sign up` controls that open the auth dialog; the page stays a plain
+scanner until you ask for it.
+
+Alongside email/password there is a **Continue with Google** button, which serves as both
+sign-in and sign-up — an unrecognised Google account is created on first use, and a
+Google address that matches an existing account signs into that account rather than
+duplicating it. Linking by email address is safe here specifically because the server
+has verified with Google that the user owns that mailbox.
+
+**The browser is never trusted about who it is.** Google Identity Services hands the
+page a signed ID token, that token is the only thing sent to `POST /api/auth/google`,
+and `GoogleTokenVerifier` verifies it server-side before it may name a user — checking
+the audience matches this application's client ID, the issuer is Google, the token has
+not expired, and the email is one Google itself has marked verified. A hand-crafted JWT
+asserting `email_verified: true` is rejected.
+
+### Enabling it
+
+Google sign-in is **off** unless configured, and the button hides itself when the server
+reports it unconfigured — there is no button that can only fail.
+
+1. In the [Google Cloud console](https://console.cloud.google.com/apis/credentials),
+   create an **OAuth 2.0 Client ID** of type **Web application**.
+2. Add your origin under **Authorised JavaScript origins** — `http://localhost:8080`
+   for local runs, plus your real origin for a deployment.
+3. Copy the generated **Client ID** into the `GOOGLE_CLIENT_ID` environment variable
+   (see `.env.example`). Restart the app; the button appears.
+
+No client secret is required, and none should be added. This app uses the ID-token
+flow, so the authorisation-code exchange that would need a secret never happens. The
+client ID is public by design — it identifies the application to Google and is visible
+in the browser — which is why it is the one auth value safe to send to the frontend
+(via `GET /api/auth/config`).
+
 ## Single-Folder Setup and Run
 
 Everything lives inside `app/`.
+
+Configuration is read from environment variables only — copy `.env.example` and fill in
+what you need. Every variable is optional for a basic local run except the datasource.
 
 ### Run Locally (Development / Production JAR)
 
