@@ -68,12 +68,17 @@ accident, not the formula:
 |---|---|---|
 | Solo-red | 55–70 | domain homoglyph, domain edit-distance match, raw IP as a link host, anchor-text/href mismatch, character substitution |
 | Strong | 45–55 | a lookalike link elsewhere in the body, a TLD swap |
-| Medium/weak | 10–30 | missing or unenforced DMARC, missing SPF, a claimed auth failure, a claimed-vs-live disagreement, a URL shortener |
+| Medium/weak | 9–30 | missing or unenforced DMARC, missing SPF, a claimed auth failure, a claimed-vs-live disagreement, a URL shortener |
 
 A single "solo-red" hit alone crosses the 60-point red threshold. Several
-medium/weak signals stacking (e.g. no DMARC + no SPF + a shortener) also
+medium/weak signals stacking (e.g. a claimed SPF failure + a claimed DKIM
+failure + a claimed DMARC failure — see the header example above) also
 crosses it — which is exactly the "weak signals should stack, not each spike
-the score alone" requirement this project started from. The full numbers are
+the score alone" requirement this project started from. Deliberately *not*
+enough on its own: a domain simply missing both SPF and DMARC with nothing
+else wrong (worth 20 points, still "low risk") — that's what keeps an
+ordinary, unauthenticated-but-otherwise-unremarkable domain from defaulting
+to "medium" on every scan. The full numbers are
 in `app/src/main/java/com/mailsentinel/config/ScoringConstants.java`.
 
 Every check that's applicable to the input type is always present in the
