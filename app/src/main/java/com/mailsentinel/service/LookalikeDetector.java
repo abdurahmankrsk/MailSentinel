@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
  *   - char substitution:  digits/letter-runs standing in for similar letters (0->o, 1->l, rn->m)
  *   - homoglyphs:         non-Latin letters visually identical to Latin (Cyrillic а/е/о/р/с/etc.), Punycode (xn--)
  *   - TLD swap:           exact brand name with wrong top-level domain
+ *   - brand subdomain:    brand name parked in a subdomain of an unrelated domain
  *
  * Plus a fifth, domain-independent technique -- display-name impersonation -- which
  * catches the case the four above structurally cannot: an attacker on a domain that
@@ -203,6 +204,49 @@ public class LookalikeDetector {
         return null;
     }
 
+    /**
+     * Does a brand's name sit in the subdomain of a registrable domain that isn't it?
+     *
+     * paypal.com.verify-account.ru resolves, correctly, to verify-account.ru -- which is
+     * exactly why the other techniques score it zero: verify-account.ru resembles no
+     * brand. The deception isn't in the registrable domain at all, it's that a human
+     * reading the address bar left-to-right sees "paypal.com" first and stops there.
+     *
+     * Matching is on whole subdomain labels, so "paypal" in paypal.com.evil.ru fires
+     * while "mypaypalinvoices" does not. A brand on its own registrable domain
+     * (mail.google.com) is the ordinary case and passes.
+     */
+    public LookalikeFinding checkBrandSubdomain(String hostname) {
+        if (hostname == null || hostname.isBlank()) {
+            return null;
+        }
+        String lower = hostname.trim().toLowerCase(Locale.ROOT);
+        String domain = UrlUtils.registrableDomain(lower);
+        if (domain.isBlank() || BrandConstants.BRAND_SET.contains(domain)) {
+            return null;
+        }
+        String suffix = "." + domain;
+        if (!lower.endsWith(suffix)) {
+            return null; // no subdomain to inspect
+        }
+
+        Set<String> labels = new HashSet<>(
+            Arrays.asList(lower.substring(0, lower.length() - suffix.length()).split("\\.")));
+
+        for (String brand : BrandConstants.BRAND_DOMAINS) {
+            String label = brand.split("\\.", 2)[0];
+            if (labels.contains(label)) {
+                return new LookalikeFinding(
+                    "brand_subdomain",
+                    brand,
+                    "Hostname " + hostname + " carries \"" + label + "\" in a subdomain, so it reads as "
+                        + brand + " while it actually resolves to " + domain
+                );
+            }
+        }
+        return null;
+    }
+
     public LookalikeFinding checkTldSwap(String domain) {
         String lower = domain.toLowerCase(Locale.ROOT);
         if (BrandConstants.BRAND_SET.contains(lower)) {
@@ -288,6 +332,11 @@ public class LookalikeDetector {
 
         LookalikeFinding f4 = checkTldSwap(domain);
         if (f4 != null) findings.add(f4);
+
+        // Takes the full hostname, not the registrable domain: the subdomain is the
+        // whole point of this one.
+        LookalikeFinding f5 = checkBrandSubdomain(hostname);
+        if (f5 != null) findings.add(f5);
 
         return findings;
     }
