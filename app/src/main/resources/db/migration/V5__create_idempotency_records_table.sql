@@ -2,7 +2,7 @@ CREATE TABLE idempotency_records (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT NOT NULL,
     idempotency_key VARCHAR(255) NOT NULL,
-    request_fingerprint CHAR(64) NOT NULL,
+    request_fingerprint VARCHAR(64) NOT NULL,
     status VARCHAR(20) NOT NULL,
     response_snapshot TEXT,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
