@@ -2,6 +2,7 @@ package com.mailsentinel.service;
 
 import com.google.common.net.InetAddresses;
 import com.google.common.net.InternetDomainName;
+import com.mailsentinel.config.ScoringConstants;
 
 import java.net.IDN;
 import java.net.URI;
@@ -105,6 +106,22 @@ public final class UrlUtils {
             // Fall through to returning raw cleanHost
         }
         return cleanHost;
+    }
+
+    /**
+     * Is this host a known URL shortener?
+     *
+     * Lives here rather than inside the link-analysis pipeline so the URL scan path
+     * and the in-body link path answer the question identically -- the same link used
+     * to score +10 inside an email and 0 when pasted on its own.
+     */
+    public static boolean isShortener(String hostname) {
+        if (hostname == null || hostname.isBlank()) {
+            return false;
+        }
+        String lower = hostname.trim().toLowerCase(Locale.ROOT);
+        return ScoringConstants.SHORTENER_DOMAINS.contains(lower)
+            || ScoringConstants.SHORTENER_DOMAINS.contains(registrableDomain(lower));
     }
 
     /**
