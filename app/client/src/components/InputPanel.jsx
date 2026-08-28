@@ -54,7 +54,8 @@ export default function InputPanel({ onScan, loading }) {
         {type === 'email' ? (
           <>
             Paste the full source of the email you received. To find it, open the message, click
-            the <MoreVerticalIcon size={15} className="hint-icon" /> menu, and choose Show original.
+            the <MoreVerticalIcon size={15} className="hint-icon" /> menu, then press{' '}
+            <strong>Show original</strong>.
           </>
         ) : (
           'Paste any links you were sent, one per line. They are never opened.'
