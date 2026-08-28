@@ -79,7 +79,9 @@ def to_check_results(domain: str, live: LiveDnsResult) -> list[CheckResult]:
         dmarc_detail = f"No DMARC record found at _dmarc.{domain}"
     elif live.dmarc_policy == "none":
         dmarc_passed = False
-        dmarc_detail = f"{domain} publishes DMARC with policy p=none (monitoring only, not enforced)"
+        dmarc_detail = (
+            f"{domain} publishes DMARC with policy p=none (monitoring only, not enforced)"
+        )
     else:
         dmarc_passed = True
         dmarc_detail = f"{domain} publishes DMARC with policy p={live.dmarc_policy}"
