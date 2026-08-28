@@ -60,7 +60,7 @@ class ScanEndToEndTest {
 
     @Test
     void registerLoginGrantPremiumScanThenIdempotentRetryReplaysWithoutDoubleCharging() throws AiProviderException {
-        when(aiProvider.analyze(any())).thenReturn(new AiAnalysisResult(
+        when(aiProvider.analyze(any(), any())).thenReturn(new AiAnalysisResult(
                 "This looks like a phishing attempt.",
                 List.of(new AiFinding("Urgency language", 12, "Uses pressure tactics typical of phishing."))));
 
@@ -99,6 +99,6 @@ class ScanEndToEndTest {
         assertEquals(1, retryBody.aiAnalysis().scansUsed(), "an idempotent retry must not consume a second scan");
         assertEquals(firstBody.aiAnalysis().summary(), retryBody.aiAnalysis().summary(), "retry must replay the cached AI summary");
 
-        verify(aiProvider, times(1)).analyze(any());
+        verify(aiProvider, times(1)).analyze(any(), any());
     }
 }
