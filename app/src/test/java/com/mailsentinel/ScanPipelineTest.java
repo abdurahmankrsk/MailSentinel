@@ -175,6 +175,35 @@ class ScanPipelineTest {
     }
 
     @Test
+    void severalPastedLinksAreAllScoredNotJustTheFirst() {
+        // The clean link comes first, so anything that only reads one URL passes this.
+        ScanResponse response = scoringService.scanUrl(
+            "https://github.com/octocat/repo\nhttp://paypa1.com/login\nhttps://bit.ly/3xamplE");
+
+        assertTrue(response.score() >= 60, "Expected high risk, got: " + response.score());
+        assertTrue(response.checks().stream()
+            .anyMatch(c -> c.name().contains("edit-distance") && !c.passed()));
+        assertTrue(response.checks().stream()
+            .anyMatch(c -> c.name().contains("shortener") && !c.passed()));
+    }
+
+    @Test
+    void severalCleanLinksStayClean() {
+        ScanResponse response = scoringService.scanUrl(
+            "https://github.com/octocat/repo https://stripe.com/receipts/abc");
+        assertEquals(0, response.score());
+    }
+
+    @Test
+    void multipleLinksProduceOneRowPerTechniqueNotOnePerLink() {
+        ScanResponse one = scoringService.scanUrl("https://github.com/octocat/repo");
+        ScanResponse many = scoringService.scanUrl(
+            "https://github.com/a https://stripe.com/b https://adobe.com/c");
+        assertEquals(one.checks().size(), many.checks().size(),
+            "Adding links must not multiply the number of checks the reader has to scan");
+    }
+
+    @Test
     void testUnknownScanTypeIsRejectedRatherThanSilentlyTreatedAsUrl() {
         assertThrows(IllegalArgumentException.class, () -> scoringService.runScan("banana", "https://paypal.com"));
     }
