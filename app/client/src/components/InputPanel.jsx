@@ -1,10 +1,13 @@
 import { useState } from 'react'
 
+const URL_LINE = /^(https?:\/\/)?[\w-]+(\.[\w-]+)+(\/|$)/i
+
+// A paste of several links is still a URL scan, so every non-empty line has to look
+// like one -- a single header line is enough to make it an email again.
 function guessType(content) {
-  const trimmed = content.trim()
-  if (!trimmed) return null
-  const looksLikeUrl = !trimmed.includes('\n') && /^(https?:\/\/)?[\w-]+(\.[\w-]+)+(\/|$)/i.test(trimmed)
-  return looksLikeUrl ? 'url' : 'email'
+  const lines = content.trim().split(/\s+/).filter(Boolean)
+  if (lines.length === 0) return null
+  return lines.every((line) => URL_LINE.test(line)) ? 'url' : 'email'
 }
 
 export default function InputPanel({ onScan, loading }) {
@@ -48,8 +51,8 @@ export default function InputPanel({ onScan, loading }) {
           thing?" actually comes up. */}
       <p className="input-hint">
         {type === 'email'
-          ? 'Paste the full source of the email you received — headers and body. In Gmail: open the message, then the ⋮ menu → Show original.'
-          : 'Paste one link from the email you received — right-click the link, copy the address, and paste it here. The link is never opened.'}
+          ? 'Paste the full source of the email you received. To find it, open the message, click the three-dot menu, and choose Show original.'
+          : 'Paste any links you were sent, one per line. They are never opened.'}
       </p>
 
       <textarea
@@ -57,8 +60,8 @@ export default function InputPanel({ onScan, loading }) {
         onChange={handleContentChange}
         placeholder={
           type === 'email'
-            ? 'Delivered-To: ...\nAuthentication-Results: ...\nFrom: ...'
-            : 'https://example.com/the-link-you-were-sent'
+            ? 'Paste the email source here...'
+            : 'Paste your links here, one per line...'
         }
         rows={14}
       />
