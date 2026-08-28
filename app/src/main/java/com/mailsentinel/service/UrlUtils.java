@@ -6,6 +6,8 @@ import com.google.common.net.InternetDomainName;
 import java.net.IDN;
 import java.net.URI;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Shared domain and URL parsing helpers.
@@ -31,6 +33,16 @@ public final class UrlUtils {
         return trimmed;
     }
 
+    // java.net.URI is far stricter than a browser or mail client about what counts
+    // as a valid authority (e.g. it rejects unencoded spaces), so a hand-crafted or
+    // malformed href in an email body can make URI.create throw. When that happens
+    // this pattern still pulls out a best-effort host -- optional userinfo before an
+    // '@', then either a bracketed IPv6 literal or everything up to the next '/',
+    // '?', '#', or ':' -- so the link still gets scored instead of silently skipped.
+    private static final Pattern LENIENT_HOST_PATTERN = Pattern.compile(
+        "^[A-Za-z][A-Za-z0-9+.-]*://(?:[^/?#@]*@)?(\\[[^\\]]*]|[^/?#:]+)"
+    );
+
     /**
      * Pull just the hostname out of a URL (or bare domain) string.
      */
@@ -38,8 +50,9 @@ public final class UrlUtils {
         if (rawUrl == null || rawUrl.isBlank()) {
             return null;
         }
+        String normalized = normalizeUrl(rawUrl);
         try {
-            URI uri = URI.create(normalizeUrl(rawUrl));
+            URI uri = URI.create(normalized);
             String host = uri.getHost();
             if (host != null && !host.isBlank()) {
                 return host.toLowerCase(Locale.ROOT);
@@ -49,12 +62,21 @@ public final class UrlUtils {
             if (authority != null) {
                 int colonIdx = authority.indexOf(':');
                 String h = colonIdx >= 0 ? authority.substring(0, colonIdx) : authority;
-                return h.toLowerCase(Locale.ROOT);
+                if (!h.isBlank()) {
+                    return h.toLowerCase(Locale.ROOT);
+                }
             }
-            return null;
-        } catch (Exception e) {
-            return null;
+        } catch (Exception ignored) {
+            // Fall through to the lenient regex below.
         }
+        Matcher matcher = LENIENT_HOST_PATTERN.matcher(normalized);
+        if (matcher.find()) {
+            String host = matcher.group(1).trim();
+            if (!host.isEmpty()) {
+                return host.toLowerCase(Locale.ROOT);
+            }
+        }
+        return null;
     }
 
     /**
