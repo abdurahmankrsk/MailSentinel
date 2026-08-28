@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MailSentinel options</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="head">
+        <h1>MailSentinel</h1>
+        <p class="sub">Scan the email you are reading, without leaving your inbox.</p>
+      </header>
+
+      <section class="card">
+        <h2>Server</h2>
+        <label for="apiBase">MailSentinel address</label>
+        <input id="apiBase" type="url" placeholder="http://localhost:8080" spellcheck="false" />
+        <p class="hint">
+          Where your MailSentinel instance is running. The default matches the local JAR
+          from the project README. Changing this to any other address needs your
+          permission, which Chrome will ask for when you save.
+        </p>
+
+        <label for="authToken">Account token <span class="optional">optional</span></label>
+        <input id="authToken" type="password" placeholder="mst_..." spellcheck="false" autocomplete="off" />
+        <p class="hint">
+          Anonymous scans work and return the full deterministic result. A token is only
+          needed to draw on your plan's AI analysis quota.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Gmail raw access <span class="optional">optional</span></h2>
+        <p class="hint tight">
+          Without this, the extension reads the message from the page, which has no
+          authentication headers — so SPF, DKIM and DMARC checks stay inconclusive.
+          Granting Gmail read access lets it fetch the true message source and check them
+          properly. Gmail only; Outlook always reads from the page.
+        </p>
+        <label for="googleClientId">Google OAuth client ID</label>
+        <input id="googleClientId" type="text" placeholder="....apps.googleusercontent.com" spellcheck="false" />
+        <p class="hint">
+          Create a <strong>Chrome extension</strong> OAuth client in the Google Cloud
+          console, enable the Gmail API, and add this redirect URI:
+        </p>
+        <p class="redirect"><code id="redirectUri">loading…</code></p>
+        <p class="hint">
+          The client ID is yours rather than bundled with the extension, so nobody else
+          can spend your quota.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Behaviour</h2>
+        <label class="check">
+          <input id="autoScan" type="checkbox" />
+          <span>
+            Scan automatically when I open a message
+            <em>
+              Off by default. Turning this on sends the content of every message you open
+              to the server above, instead of only the ones you ask about.
+            </em>
+          </span>
+        </label>
+      </section>
+
+      <div class="actions">
+        <button id="save" class="primary" type="button">Save</button>
+        <span id="status" class="status" role="status" aria-live="polite"></span>
+      </div>
+    </main>
+
+    <script src="../lib/settings.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>
