@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "MailSentinel",
+  "version": "0.1.0",
+  "description": "Scan the email you are reading for phishing signals, without leaving your inbox.",
+  "permissions": ["storage", "identity"],
+  "host_permissions": ["http://localhost:8080/*", "https://gmail.googleapis.com/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mail.google.com/*",
+        "https://outlook.office.com/*",
+        "https://outlook.office365.com/*",
+        "https://outlook.live.com/*"
+      ],
+      "js": [
+        "src/lib/settings.js",
+        "src/lib/score.js",
+        "src/lib/rfc822.js",
+        "src/content/adapters/gmail.js",
+        "src/content/adapters/outlook.js",
+        "src/content/adapters/registry.js",
+        "src/content/panel.js",
+        "src/content/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/content/panel.css"],
+      "matches": [
+        "https://mail.google.com/*",
+        "https://outlook.office.com/*",
+        "https://outlook.office365.com/*",
+        "https://outlook.live.com/*"
+      ]
+    }
+  ],
+  "options_page": "src/options/options.html",
+  "action": {
+    "default_title": "MailSentinel"
+  }
+}
