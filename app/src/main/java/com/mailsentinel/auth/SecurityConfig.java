@@ -81,6 +81,12 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/usage/**").authenticated()
+                // Ahead of the broader /api/account/** rule below: matchers are
+                // evaluated in order and the first match wins, so this narrower,
+                // public sub-path has to come first or it would inherit the
+                // authenticated() requirement meant for the rest of the account API.
+                .requestMatchers("/api/account/ai-key/config").permitAll()
+                .requestMatchers("/api/account/**").authenticated()
                 .anyRequest().permitAll()
             )
             .addFilterBefore(bearerTokenAuthFilter, UsernamePasswordAuthenticationFilter.class)
