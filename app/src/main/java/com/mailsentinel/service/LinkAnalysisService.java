@@ -32,8 +32,20 @@ public class LinkAnalysisService {
         Pattern.CASE_INSENSITIVE
     );
 
-    private static final Pattern URL_LIKE_PATTERN = Pattern.compile(
-        "^(https?://)?[\\w-]+(\\.[\\w-]+)+",
+    /**
+     * Finds a domain named anywhere inside anchor text.
+     *
+     * The anchoring matters. This pattern used to be tied to {@code ^}, which meant the
+     * domain had to be the very first thing in the text -- so "paypal.com" was caught
+     * while "confirm at paypal.com", "Click here: paypal.com" and "Sign in to paypal.com
+     * now" all sailed past, even though they are the more natural way to write the lure.
+     * The mismatch check was effectively opt-in for the attacker.
+     *
+     * The trailing {@code [a-z]{2,}} also stops "3.14" and "555.123.4567" from being read
+     * as domains, which the previous pattern did match.
+     */
+    private static final Pattern ANCHOR_DOMAIN_PATTERN = Pattern.compile(
+        "\\b(?:https?://)?([\\w-]+(?:\\.[\\w-]+)*\\.[a-z]{2,})\\b",
         Pattern.CASE_INSENSITIVE
     );
 
@@ -94,9 +106,30 @@ public class LinkAnalysisService {
         return uniqueLinks;
     }
 
-    private boolean looksLikeUrlOrDomain(String text) {
-        if (text == null) return false;
-        return URL_LIKE_PATTERN.matcher(text.trim()).find();
+    /**
+     * The registrable domain the anchor text claims, or null if it names none.
+     *
+     * Returning the matched token rather than a boolean is what lets the caller compare
+     * the right thing: the text around the domain ("confirm at ...") is prose, and
+     * feeding the whole string to a hostname parser yields a host that is neither the
+     * claimed domain nor anything else meaningful.
+     *
+     * The public-suffix test is the guard against false positives. Anchor mismatch is a
+     * solo-red signal, so "See attached.Please review" must not be read as naming a
+     * domain simply because it contains a dot with no space after it.
+     */
+    private String domainClaimedByAnchorText(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Matcher matcher = ANCHOR_DOMAIN_PATTERN.matcher(text.trim());
+        while (matcher.find()) {
+            String candidate = matcher.group(1);
+            if (UrlUtils.isRegistrableDomain(candidate)) {
+                return UrlUtils.registrableDomain(candidate);
+            }
+        }
+        return null;
     }
 
     public List<CheckResult> analyzeLinks(List<ExtractedLink> links) {
@@ -128,14 +161,9 @@ public class LinkAnalysisService {
             }
 
             // 4. Anchor text mismatch check
-            if (link.anchorText() != null && looksLikeUrlOrDomain(link.anchorText())) {
-                String anchorHost = UrlUtils.extractHostname(link.anchorText());
-                if (anchorHost != null) {
-                    String anchorDomain = UrlUtils.registrableDomain(anchorHost);
-                    if (!anchorDomain.equalsIgnoreCase(domain)) {
-                        mismatchHits.add("anchor text '" + link.anchorText() + "' actually points to " + link.href());
-                    }
-                }
+            String claimedDomain = domainClaimedByAnchorText(link.anchorText());
+            if (claimedDomain != null && !claimedDomain.equalsIgnoreCase(domain)) {
+                mismatchHits.add("anchor text '" + link.anchorText() + "' actually points to " + link.href());
             }
         }
 
