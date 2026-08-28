@@ -1,0 +1,16 @@
+From: Apple Support <support@аpple.com>
+To: user@example.com
+Subject: Your Apple ID was used to sign in on a new device
+Date: Fri, 22 Aug 2025 16:45:00 +0000
+Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=аpple.com; dkim=pass header.d=аpple.com; dmarc=pass header.from=аpple.com
+Content-Type: text/plain; charset="utf-8"
+
+Hello,
+
+Your Apple ID was used to sign in on a new MacBook Pro.
+
+If this was you, no further action is needed. If you don't recognize
+this device, please review your account activity as soon as possible.
+
+Thanks,
+Apple Support

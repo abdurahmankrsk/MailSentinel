@@ -1,0 +1,17 @@
+From: GitHub <notifications@github.com>
+To: user@example.com
+Subject: [octocat/example-repo] New comment on your issue (#42)
+Date: Mon, 18 Aug 2025 14:02:11 +0000
+Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=github.com; dkim=pass header.d=github.com; dmarc=pass header.from=github.com
+Content-Type: text/html; charset="utf-8"
+
+<html>
+<body>
+<p>Hi there,</p>
+<p>alice-dev commented on issue #42 in octocat/example-repo:</p>
+<blockquote>Thanks for the detailed writeup, I've reproduced this and I'm
+looking into a fix now.</blockquote>
+<p><a href="https://github.com/octocat/example-repo/issues/42#issuecomment-1234567">View the comment on GitHub</a></p>
+<p>You are receiving this because you are subscribed to this thread.</p>
+</body>
+</html>
