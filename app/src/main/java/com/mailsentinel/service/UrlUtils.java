@@ -1,4 +1,4 @@
-package com.lookalike.service;
+package com.mailsentinel.service;
 
 import com.google.common.net.InetAddresses;
 import com.google.common.net.InternetDomainName;

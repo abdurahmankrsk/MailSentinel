@@ -1,4 +1,4 @@
-package com.lookalike.dto;
+package com.mailsentinel.dto;
 
 import java.util.List;
 

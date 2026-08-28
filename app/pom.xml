@@ -11,11 +11,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.lookalike</groupId>
-    <artifactId>lookalike</artifactId>
+    <groupId>com.mailsentinel</groupId>
+    <artifactId>mailsentinel</artifactId>
     <version>0.1.0</version>
-    <name>lookalike</name>
-    <description>Phishing-detection API &amp; Web App</description>
+    <name>MailSentinel</name>
+    <description>MailSentinel Phishing-Detection API &amp; Web App</description>
 
     <properties>
         <java.version>21</java.version>

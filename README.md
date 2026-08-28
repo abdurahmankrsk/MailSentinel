@@ -1,6 +1,6 @@
-# Lookalike
+# MailSentinel
 
-Lookalike is a phishing-detection web app: paste in a raw email or a URL, and
+MailSentinel is a phishing-detection web app: paste in a raw email or a URL, and
 it returns a 0–100 risk score with a full breakdown of exactly which signals
 fired, which passed, and why. Nothing about the design is a black box — every
 check is a small, independently-explainable piece of logic, which is the
@@ -30,7 +30,7 @@ in the request that scans it.
 
 ## How scoring works
 
-Every check in `app/src/main/java/com/lookalike/service/ScoringService.java` returns
+Every check in `app/src/main/java/com/mailsentinel/service/ScoringService.java` returns
 a `passed: boolean` and a fixed `weight: int`. The score is the simplest thing that
 could work:
 
@@ -57,7 +57,7 @@ A single "solo-red" hit alone crosses the 60-point red threshold. Several
 medium/weak signals stacking (e.g. no DMARC + no SPF + a shortener) also
 crosses it — which is exactly the "weak signals should stack, not each spike
 the score alone" requirement this project started from. The full numbers are
-in `app/src/main/java/com/lookalike/config/ScoringConstants.java`.
+in `app/src/main/java/com/mailsentinel/config/ScoringConstants.java`.
 
 Every check that's applicable to the input type is always present in the
 response, whether it passed or failed — a clean scan shows *why* it's clean
@@ -202,7 +202,7 @@ cd ..
 
 # 2. Package and run the Spring Boot app
 ./mvnw clean package
-java -jar target/lookalike-0.1.0.jar
+java -jar target/mailsentinel-0.1.0.jar
 ```
 
 Now open **http://localhost:8080** in your browser. Both the web interface and the
@@ -219,8 +219,8 @@ cd app
 
 ```bash
 cd app
-docker build -t lookalike .
-docker run -p 8080:8080 lookalike
+docker build -t mailsentinel .
+docker run -p 8080:8080 mailsentinel
 ```
 
 ## CI

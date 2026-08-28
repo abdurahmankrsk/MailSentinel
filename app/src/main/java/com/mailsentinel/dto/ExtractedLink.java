@@ -1,4 +1,4 @@
-package com.lookalike.dto;
+package com.mailsentinel.dto;
 
 /**
  * A link extracted from an email body.

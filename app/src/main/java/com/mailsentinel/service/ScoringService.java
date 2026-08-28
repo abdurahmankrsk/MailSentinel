@@ -1,7 +1,7 @@
-package com.lookalike.service;
+package com.mailsentinel.service;
 
-import com.lookalike.config.ScoringConstants;
-import com.lookalike.dto.*;
+import com.mailsentinel.config.ScoringConstants;
+import com.mailsentinel.dto.*;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;

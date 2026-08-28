@@ -1,7 +1,7 @@
-package com.lookalike.service;
+package com.mailsentinel.service;
 
-import com.lookalike.config.BrandConstants;
-import com.lookalike.dto.LookalikeFinding;
+import com.mailsentinel.config.BrandConstants;
+import com.mailsentinel.dto.LookalikeFinding;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.springframework.stereotype.Service;
 
@@ -12,7 +12,7 @@ import java.util.*;
  * Lookalike and typosquat detection against the BrandConstants target list.
  *
  * Four independent techniques:
- *   - edit distance:      paypa1-secure.com is 1 edit from paypal.com
+ *   - edit distance:      paypa1.com is 1 edit from paypal.com
  *   - char substitution:  digits/letter-runs standing in for similar letters (0->o, 1->l, rn->m)
  *   - homoglyphs:         non-Latin letters visually identical to Latin (Cyrillic а/е/о/р/с/etc.), Punycode (xn--)
  *   - TLD swap:           exact brand name with wrong top-level domain

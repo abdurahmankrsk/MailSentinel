@@ -1,9 +1,9 @@
-package com.lookalike;
+package com.mailsentinel;
 
-import com.lookalike.dto.CheckResult;
-import com.lookalike.dto.ScanResponse;
-import com.lookalike.service.LookalikeDetector;
-import com.lookalike.service.ScoringService;
+import com.mailsentinel.dto.CheckResult;
+import com.mailsentinel.dto.ScanResponse;
+import com.mailsentinel.service.LookalikeDetector;
+import com.mailsentinel.service.ScoringService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

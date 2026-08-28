@@ -1,4 +1,4 @@
-package com.lookalike.dto;
+package com.mailsentinel.dto;
 
 /**
  * Finding returned by lookalike / typosquatting detection checks.

@@ -1,4 +1,4 @@
-package com.lookalike.dto;
+package com.mailsentinel.dto;
 
 /**
  * Authentication verdicts extracted from the Authentication-Results header.

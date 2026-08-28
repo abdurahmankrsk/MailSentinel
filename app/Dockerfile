@@ -22,7 +22,7 @@ RUN ./mvnw package -DskipTests -B
 # Stage 3: Runtime
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=backend-builder /app/target/lookalike-*.jar app.jar
+COPY --from=backend-builder /app/target/mailsentinel-*.jar app.jar
 
 EXPOSE 8080
 ENV PORT=8080

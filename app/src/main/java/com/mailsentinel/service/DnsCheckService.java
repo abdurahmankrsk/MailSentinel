@@ -1,9 +1,9 @@
-package com.lookalike.service;
+package com.mailsentinel.service;
 
-import com.lookalike.config.ScoringConstants;
-import com.lookalike.dto.CheckResult;
-import com.lookalike.dto.ClaimedAuthResults;
-import com.lookalike.dto.LiveDnsResult;
+import com.mailsentinel.config.ScoringConstants;
+import com.mailsentinel.dto.CheckResult;
+import com.mailsentinel.dto.ClaimedAuthResults;
+import com.mailsentinel.dto.LiveDnsResult;
 import org.springframework.stereotype.Service;
 import org.xbill.DNS.Lookup;
 import org.xbill.DNS.Record;

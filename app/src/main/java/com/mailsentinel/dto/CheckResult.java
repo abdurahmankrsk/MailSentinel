@@ -1,4 +1,4 @@
-package com.lookalike.dto;
+package com.mailsentinel.dto;
 
 /**
  * Result of a single phishing detection check.

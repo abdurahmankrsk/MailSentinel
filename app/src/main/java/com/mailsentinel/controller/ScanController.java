@@ -1,8 +1,8 @@
-package com.lookalike.controller;
+package com.mailsentinel.controller;
 
-import com.lookalike.dto.ScanRequest;
-import com.lookalike.dto.ScanResponse;
-import com.lookalike.service.ScoringService;
+import com.mailsentinel.dto.ScanRequest;
+import com.mailsentinel.dto.ScanResponse;
+import com.mailsentinel.service.ScoringService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;

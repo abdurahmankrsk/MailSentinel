@@ -1,4 +1,4 @@
-package com.lookalike.dto;
+package com.mailsentinel.dto;
 
 /**
  * Result of independent DNS TXT queries for SPF and DMARC.

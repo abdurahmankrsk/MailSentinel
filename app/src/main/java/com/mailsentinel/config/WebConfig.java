@@ -1,4 +1,4 @@
-package com.lookalike.config;
+package com.mailsentinel.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;

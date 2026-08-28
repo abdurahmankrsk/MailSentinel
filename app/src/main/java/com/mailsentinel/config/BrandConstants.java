@@ -1,4 +1,4 @@
-package com.lookalike.config;
+package com.mailsentinel.config;
 
 import java.util.List;
 import java.util.Set;

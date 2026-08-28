@@ -26,7 +26,7 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Lookalike</h1>
+        <h1>MailSentinel</h1>
         <p className="tagline">Paste an email or URL. Get a transparent phishing-risk breakdown.</p>
       </header>
 

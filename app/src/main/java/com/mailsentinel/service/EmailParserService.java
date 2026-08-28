@@ -1,6 +1,6 @@
-package com.lookalike.service;
+package com.mailsentinel.service;
 
-import com.lookalike.dto.ParsedEmail;
+import com.mailsentinel.dto.ParsedEmail;
 import jakarta.mail.BodyPart;
 import jakarta.mail.Multipart;
 import jakarta.mail.Part;
