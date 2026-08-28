@@ -93,3 +93,46 @@ export async function fetchUsage() {
   }
   return response.json()
 }
+
+export async function fetchAiKeyConfig() {
+  const response = await fetch(`${API_BASE}/api/account/ai-key/config`)
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response))
+  }
+  return response.json()
+}
+
+export async function fetchAiKeyStatus() {
+  const response = await fetch(`${API_BASE}/api/account/ai-key`, {
+    headers: { ...authHeaders() },
+  })
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response))
+  }
+  return response.json()
+}
+
+export async function saveAiKey(label, baseUrl, model, key) {
+  const response = await fetch(`${API_BASE}/api/account/ai-key`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ label, baseUrl, model, key }),
+  })
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response))
+  }
+  return response.json()
+}
+
+export async function deleteAiKey() {
+  const response = await fetch(`${API_BASE}/api/account/ai-key`, {
+    method: 'DELETE',
+    headers: { ...authHeaders() },
+  })
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response))
+  }
+}
