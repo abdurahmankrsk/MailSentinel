@@ -1,13 +1,38 @@
+/* MailSentinel — operations console.
+   A single committed dark world: this is a tool for reading hostile mail, used at a
+   desk, next to a terminal. Cyan carries every interactive and brand moment; the
+   three verdict hues (pass / caution / threat) are held separate from it so severity
+   never reads as chrome. Monospace is reserved for things that are actually data —
+   scores, weights, domains, raw message source. */
+
 :root {
-  --bg: #0f1115;
-  --panel: #171a21;
-  --border: #2a2f3a;
-  --text: #e6e9ef;
-  --text-dim: #9aa3b2;
-  --green: #33c17a;
-  --yellow: #e0b83a;
-  --red: #e05252;
-  --accent: #5b8def;
+  --ground: #0a0e14;
+  --surface: #111823;
+  --raised: #17202c;
+  --line: #1e2a38;
+  --line-strong: #2b3a4b;
+
+  --ink: #e4ebf5;
+  --ink-2: #94a5bb;
+  --ink-3: #6f8199;
+
+  --accent: #38bdf8;
+  --accent-deep: #0ea5e9;
+  --accent-wash: rgba(56, 189, 248, 0.12);
+
+  --pass: #45d483;
+  --pass-wash: rgba(69, 212, 131, 0.11);
+  --caution: #f5b544;
+  --caution-wash: rgba(245, 181, 68, 0.12);
+  --threat: #ff6b6b;
+  --threat-wash: rgba(255, 107, 107, 0.11);
+
+  --font-ui: Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-data: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  --radius: 10px;
+  --radius-sm: 7px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
@@ -16,30 +41,64 @@
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--ground);
+  /* A faint hairline grid — the surface a console is read against. Fixed so it
+     stays put while results scroll over it. */
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.028) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Browser surfaces belong to the design too. */
+::selection {
+  background: rgba(56, 189, 248, 0.28);
+  color: #ffffff;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 99px;
+  border: 3px solid var(--ground);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #3a4c60;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .app {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 2.5rem 1.5rem 4rem;
+  padding: 3.5rem 1.5rem 6rem;
 }
 
-header h1 {
-  margin: 0;
-  font-size: 2rem;
-  letter-spacing: -0.02em;
-}
-
-/* Full-width basis puts the tagline on its own row beneath the title and the auth
-   controls, which share the row above it. */
-.tagline {
-  flex: 1 0 100%;
-  margin: 0.25rem 0 2rem;
-  color: var(--text-dim);
-}
+/* ---------- Header ---------- */
 
 .app-header {
   display: flex;
@@ -49,15 +108,39 @@ header h1 {
   flex-wrap: wrap;
 }
 
+header h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+header h1 svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.tagline {
+  flex: 1 0 100%;
+  margin: 0.5rem 0 2.25rem;
+  color: var(--ink-2);
+  font-size: 0.92rem;
+  max-width: 56ch;
+}
+
 .account-strip {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .account-email {
-  color: var(--text-dim);
-  font-size: 0.85rem;
+  color: var(--ink-2);
+  font-family: var(--font-data);
+  font-size: 0.78rem;
 }
 
 .link-button {
@@ -65,346 +148,326 @@ header h1 {
   border: none;
   color: var(--accent);
   cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0;
+  font-family: inherit;
+  font-size: 0.82rem;
+  padding: 0.2rem;
 }
 
 .link-button:hover {
-  text-decoration: underline;
+  color: #7dd3fc;
 }
 
-/* Header auth controls -- same pill geometry and hover language as .type-toggle
-   buttons, so they read as part of the existing system rather than bare defaults. */
 .nav-button {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 0.45rem 1rem;
-  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  padding: 0.45rem 0.95rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.85rem;
   font-family: inherit;
-  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  font-size: 0.82rem;
+  font-weight: 500;
+  transition: border-color 0.18s var(--ease-out), background 0.18s var(--ease-out),
+    color 0.18s var(--ease-out);
 }
 
 .nav-button:hover {
-  background: #1e222b;
-  border-color: #3a4150;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .nav-button-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: white;
+  color: #04121c;
+  font-weight: 600;
 }
 
 .nav-button-primary:hover {
-  background: #4a7ce0;
-  border-color: #4a7ce0;
+  background: #7dd3fc;
+  border-color: #7dd3fc;
+  color: #04121c;
 }
 
-.nav-button:focus-visible,
-.modal-close:focus-visible,
-.google-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(8, 10, 14, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  z-index: 50;
-}
-
-.modal-dialog {
-  width: 100%;
-  max-width: 400px;
-  max-height: calc(100vh - 3rem);
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.1rem 1.25rem 0;
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: 1.5rem;
-  line-height: 1;
-  padding: 0 0.25rem;
-  cursor: pointer;
-  border-radius: 6px;
-}
-
-.modal-close:hover {
-  color: var(--text);
-}
-
-.auth-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 1.25rem;
-}
-
-.auth-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-/* Inside the dialog the submit button spans the form rather than hugging its text,
-   which is what .scan-button does on the scan panel. Scoped under .auth-form so it
-   outranks .scan-button's own align-self, which is defined later in this file. */
-.auth-form .auth-submit {
-  align-self: stretch;
-  text-align: center;
-}
-
-.auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: var(--text-dim);
-  font-size: 0.75rem;
-}
-
-.auth-divider::before,
-.auth-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
-.google-signin {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.google-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  width: 100%;
-  background: #ffffff;
-  border: 1px solid #dadce0;
-  color: #1f1f1f;
-  border-radius: 8px;
-  padding: 0.6rem 1rem;
-  font-size: 0.9rem;
-  font-family: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
-}
-
-.google-button:hover:not(:disabled) {
-  background: #f5f6f7;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-}
-
-.google-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.google-mark {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
-.google-error {
-  margin: 0;
-  color: var(--red);
-  font-size: 0.8rem;
-  line-height: 1.4;
-}
-
-.auth-form input {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.9rem;
-}
-
-.usage-panel {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-  padding: 0.6rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--panel);
-  width: fit-content;
-}
-
-.plan-badge {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-}
-
-.plan-free {
-  background: rgba(154, 163, 178, 0.15);
-  color: var(--text-dim);
-}
-
-.plan-premium {
-  background: rgba(91, 141, 239, 0.18);
-  color: var(--accent);
-}
-
-.usage-figures {
-  font-size: 0.82rem;
-  color: var(--text-dim);
-}
-
-.ai-summary {
-  margin-top: 1rem;
-  padding: 0.9rem 1rem;
-  border-radius: 8px;
-  border: 1px solid var(--accent);
-  background: rgba(91, 141, 239, 0.12);
-  font-size: 0.88rem;
-  line-height: 1.5;
-}
+/* ---------- Scan panel ---------- */
 
 .input-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
 .type-toggle {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .type-toggle button {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-family: var(--font-data);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 0.18s var(--ease-out), border-color 0.18s var(--ease-out),
+    background 0.18s var(--ease-out);
+}
+
+.type-toggle button:hover {
+  color: var(--ink-2);
+  border-color: var(--line-strong);
 }
 
 .type-toggle button.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
+  background: var(--accent-wash);
+  border-color: var(--accent-deep);
+  color: var(--accent);
 }
 
 .auto-hint {
-  color: var(--text-dim);
-  font-size: 0.75rem;
-  font-style: italic;
+  color: var(--ink-3);
+  font-family: var(--font-data);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
 }
 
 textarea {
   width: 100%;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 0.9rem;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  caret-color: var(--accent);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  font-family: var(--font-data);
+  font-size: 0.8rem;
+  line-height: 1.7;
   resize: vertical;
+  transition: border-color 0.18s var(--ease-out);
+}
+
+textarea::placeholder {
+  color: var(--ink-3);
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--accent-deep);
 }
 
 .scan-button {
   align-self: flex-start;
   background: var(--accent);
-  border: none;
-  color: white;
-  padding: 0.6rem 1.5rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
+  border: 1px solid var(--accent);
+  color: #04121c;
+  padding: 0.6rem 1.6rem;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.18s var(--ease-out), border-color 0.18s var(--ease-out);
+}
+
+.scan-button:hover:not(:disabled) {
+  background: #7dd3fc;
+  border-color: #7dd3fc;
 }
 
 .scan-button:disabled {
-  opacity: 0.5;
+  background: transparent;
+  border-color: var(--line-strong);
+  color: var(--ink-3);
   cursor: not-allowed;
 }
 
-.error-banner {
-  margin-top: 1.5rem;
-  padding: 0.8rem 1rem;
-  border-radius: 8px;
-  background: rgba(224, 82, 82, 0.15);
-  border: 1px solid var(--red);
-  color: var(--red);
-}
+/* ---------- Verdict meter ---------- */
 
 .results {
-  margin-top: 2.5rem;
+  margin-top: 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
 }
 
-.score-display {
-  text-align: center;
-  padding: 1.5rem;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  margin-bottom: 1.5rem;
+/* The one authored motion moment: results arrive as a single settling reveal. */
+@media (prefers-reduced-motion: no-preference) {
+  .results {
+    animation: settle 0.5s var(--ease-out) both;
+  }
 }
 
-.score-number {
-  font-size: 3.5rem;
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.verdict {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 1.5rem 1.6rem 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+/* Score and band read as one unit. Pushed to opposite edges of a 760px card they
+   stop being a single glance, which is the whole job of this block. */
+.verdict-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.verdict-score {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: 3.1rem;
   font-weight: 700;
   line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
 }
 
-.score-label {
-  margin-top: 0.4rem;
-  font-size: 0.95rem;
-  color: var(--text-dim);
+.verdict-max {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--ink-3);
+  letter-spacing: 0;
 }
 
-.score-green .score-number {
-  color: var(--green);
+.verdict-band {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
 }
 
-.score-yellow .score-number {
-  color: var(--yellow);
+.verdict-note {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.87rem;
+  max-width: 60ch;
 }
 
-.score-red .score-number {
-  color: var(--red);
+.meter {
+  position: relative;
+  padding-bottom: 1.15rem;
+}
+
+.meter-track {
+  position: relative;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--raised);
+  overflow: visible;
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.6s var(--ease-out);
+}
+
+/* Boundaries are marked above the track, like a ruler, rather than drawn through it:
+   crossing the bar puts them in a contrast fight with whichever band colour has
+   filled it, and at 100 they vanish into the fill entirely. */
+.meter-threshold {
+  position: absolute;
+  top: -7px;
+  width: 1px;
+  height: 4px;
+  background: var(--ink-3);
+}
+
+.meter-scale {
+  position: relative;
+  height: 0;
+}
+
+.meter-mark {
+  position: absolute;
+  top: 0.5rem;
+  transform: translateX(-50%);
+  font-family: var(--font-data);
+  font-size: 0.68rem;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.verdict[data-band='low'] .verdict-score,
+.verdict[data-band='low'] .verdict-band {
+  color: var(--pass);
+}
+.verdict[data-band='low'] .meter-fill {
+  background: var(--pass);
+}
+
+.verdict[data-band='medium'] .verdict-score,
+.verdict[data-band='medium'] .verdict-band {
+  color: var(--caution);
+}
+.verdict[data-band='medium'] .meter-fill {
+  background: var(--caution);
+}
+
+.verdict[data-band='high'] .verdict-score,
+.verdict[data-band='high'] .verdict-band {
+  color: var(--threat);
+}
+.verdict[data-band='high'] .meter-fill {
+  background: var(--threat);
+}
+
+/* ---------- Signal ledger ---------- */
+
+.ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.ledger-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.ledger-head h2 {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.ledger-count {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-count b {
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .checks-list {
@@ -413,29 +476,38 @@ textarea {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .checks-list li {
   display: flex;
-  gap: 0.75rem;
-  padding: 0.75rem 0.9rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--panel);
+  gap: 0.8rem;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.check-fail {
+  border-color: rgba(255, 107, 107, 0.32);
+  background: linear-gradient(90deg, var(--threat-wash), transparent 55%), var(--surface);
 }
 
 .check-icon {
-  font-size: 1.1rem;
-  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 24px;
+  flex-shrink: 0;
 }
 
 .check-pass .check-icon {
-  color: var(--green);
+  color: var(--pass);
 }
 
 .check-fail .check-icon {
-  color: var(--red);
+  color: var(--threat);
 }
 
 .check-body {
@@ -447,45 +519,306 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .check-name {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.86rem;
+  letter-spacing: -0.005em;
 }
 
 .check-weight {
-  font-size: 0.8rem;
-  color: var(--red);
+  font-family: var(--font-data);
+  font-size: 0.73rem;
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.check-pass .check-weight {
+  color: var(--ink-3);
+}
+
+.check-fail .check-weight {
+  color: var(--threat);
+  font-weight: 700;
 }
 
 .check-detail {
-  margin: 0.3rem 0 0;
-  color: var(--text-dim);
-  font-size: 0.85rem;
-  line-height: 1.4;
+  margin: 0.28rem 0 0;
+  color: var(--ink-2);
+  font-family: var(--font-data);
+  font-size: 0.75rem;
+  line-height: 1.6;
   word-break: break-word;
 }
 
+/* ---------- Usage strip ---------- */
+
+.usage-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 1.75rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  width: fit-content;
+}
+
+.plan-badge {
+  font-family: var(--font-data);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 0.18rem 0.5rem;
+  border-radius: 4px;
+}
+
+.plan-free {
+  background: var(--raised);
+  color: var(--ink-2);
+}
+
+.plan-premium {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.usage-figures {
+  font-family: var(--font-data);
+  font-size: 0.74rem;
+  color: var(--ink-2);
+}
+
+.ai-summary {
+  padding: 1rem 1.15rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: var(--accent-wash);
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.ai-summary strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.error-banner {
+  margin-top: 1.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--threat-wash);
+  border: 1px solid rgba(255, 107, 107, 0.35);
+  color: var(--threat);
+  font-size: 0.86rem;
+}
+
+/* ---------- Auth dialog ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 11, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 50;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modal-backdrop {
+    animation: fade 0.2s var(--ease-out) both;
+  }
+  .modal-dialog {
+    animation: settle 0.28s var(--ease-out) both;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.modal-dialog {
+  width: 100%;
+  max-width: 390px;
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.35rem 0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--ink-3);
+  padding: 0.25rem;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: color 0.18s var(--ease-out);
+}
+
+.modal-close:hover {
+  color: var(--ink);
+}
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.15rem 1.35rem 1.45rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.auth-form input {
+  background: var(--ground);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  caret-color: var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.62rem 0.85rem;
+  font-family: inherit;
+  font-size: 0.87rem;
+  transition: border-color 0.18s var(--ease-out);
+}
+
+.auth-form input::placeholder {
+  color: var(--ink-3);
+}
+
+.auth-form input:focus {
+  outline: none;
+  border-color: var(--accent-deep);
+}
+
+.auth-form .auth-submit {
+  align-self: stretch;
+  text-align: center;
+  margin-top: 0.15rem;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: var(--ink-3);
+  font-family: var(--font-data);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.google-signin {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.google-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #ffffff;
+  color: #1f1f1f;
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1rem;
+  font-family: inherit;
+  font-size: 0.87rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s var(--ease-out), border-color 0.18s var(--ease-out);
+}
+
+.google-button:hover:not(:disabled) {
+  background: #e8eaed;
+  border-color: #e8eaed;
+}
+
+.google-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.google-mark {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
+.google-error {
+  margin: 0;
+  color: var(--threat);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+/* ---------- Narrow screens ---------- */
+
 @media (max-width: 560px) {
   .app {
-    padding: 1.5rem 1rem 3rem;
+    padding: 2.25rem 1.1rem 4rem;
   }
 
   header h1 {
-    font-size: 1.6rem;
+    font-size: 1.3rem;
   }
 
   .tagline {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .verdict-score {
+    font-size: 2.6rem;
+  }
+
+  .verdict {
+    padding: 1.25rem 1.15rem 1.35rem;
   }
 
   .modal-backdrop {
     padding: 1rem;
-    /* Bottom-anchored on phones so the dialog sits above the thumb, not under
-       the browser chrome. */
     align-items: flex-end;
   }
 
@@ -493,7 +826,8 @@ textarea {
     max-width: none;
   }
 
-  .score-number {
-    font-size: 3rem;
+  .check-header {
+    flex-wrap: wrap;
+    gap: 0.2rem 0.75rem;
   }
 }
