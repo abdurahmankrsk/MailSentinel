@@ -22,8 +22,16 @@ RUN ./mvnw package -DskipTests -B
 # Stage 3: Runtime
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=backend-builder /app/target/mailsentinel-*.jar app.jar
 
+# Run as an unprivileged user. Nothing here needs root, and the default is only the
+# default because it is easy -- a container that never writes outside /app has no reason
+# to hold the one account that could.
+RUN addgroup -S mailsentinel && adduser -S -G mailsentinel mailsentinel
+COPY --from=backend-builder --chown=mailsentinel:mailsentinel /app/target/mailsentinel-*.jar app.jar
+USER mailsentinel
+
+# The app binds ${PORT:8080} (see application.properties), so a platform that assigns a
+# port by injecting PORT is honoured; 8080 stays the default for a plain `docker run`.
 EXPOSE 8080
 ENV PORT=8080
 
