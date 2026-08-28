@@ -243,11 +243,14 @@ header h1 svg {
   max-width: 62ch;
 }
 
-/* Sits in the run of text as a word would, so the sentence still reads as a sentence. */
+/* Sits in the run of text as a word would, so the sentence still reads as a sentence.
+   The heavier stroke is this icon's equivalent of the bold weight on the control name
+   beside it -- the dots are round caps, so stroke width is their diameter. */
 .hint-icon {
   vertical-align: -0.22em;
   margin: 0 0.05em;
   color: var(--ink);
+  stroke-width: 2.6;
 }
 
 /* The literal control to look for, lifted out of the dimmed hint so it can be
