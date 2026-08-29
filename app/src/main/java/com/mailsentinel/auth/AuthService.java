@@ -1,16 +1,50 @@
 package com.mailsentinel.auth;
 
 import com.mailsentinel.subscription.SubscriptionService;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 @Service
 public class AuthService {
+
+    /**
+     * Practical email syntax: a local part, then at least two dot-separated domain labels
+     * that each begin and end alphanumerically.
+     *
+     * <p>Deliberately not an attempt at full RFC 5322 -- that grammar admits quoted
+     * strings and comments no signup form should accept anyway. What matters here is
+     * that an address <em>has</em> a domain at all, because the disposable-provider check
+     * matches on the text after the last {@code @}: without this, "notanemail" registered
+     * successfully and skipped that check entirely, since there was no domain to match.
+     */
+    private static final Pattern EMAIL_PATTERN = Pattern.compile(
+            "^[A-Za-z0-9._%+-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?"
+                    + "(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$");
+
+    /** RFC 5321's ceiling, and comfortably inside the {@code varchar(320)} email column. */
+    public static final int MAX_EMAIL_LENGTH = 254;
+
+    /**
+     * Shared so the controller and this service enforce one definition rather than
+     * drifting apart. Checked here as well as at the edge because the edge is not the
+     * only caller -- and because a length that passes validation but overflows the
+     * column surfaces as a 500, not a 400.
+     */
+    public static boolean isValidEmailFormat(String email) {
+        if (email == null) {
+            return false;
+        }
+        String trimmed = email.trim();
+        return trimmed.length() <= MAX_EMAIL_LENGTH && EMAIL_PATTERN.matcher(trimmed).matches();
+    }
 
     private final UserRepository userRepository;
     private final AuthTokenRepository authTokenRepository;
@@ -41,6 +75,12 @@ public class AuthService {
     @Transactional
     public RegisteredUser register(String email, String rawPassword) {
         String normalizedEmail = normalize(email);
+        // Ahead of the disposable check, which can only be meaningful once the address is
+        // known to have a domain to inspect at all.
+        if (!isValidEmailFormat(normalizedEmail)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "That doesn't look like a valid email address");
+        }
         // Checked before the duplicate lookup so a throwaway address gets the same answer
         // whether or not it happens to be taken -- the rejection is about the domain, and
         // a 409 here would confirm to the sender that some address is registered.
