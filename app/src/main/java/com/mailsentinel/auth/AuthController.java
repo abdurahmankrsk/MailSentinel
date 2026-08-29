@@ -11,11 +11,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
     private static final int MIN_PASSWORD_LENGTH = 8;
+    /** BCrypt's hard input limit; see validate(). */
+    private static final int MAX_PASSWORD_BYTES = 72;
 
     private final AuthService authService;
     private final SubscriptionService subscriptionService;
@@ -83,9 +87,22 @@ public class AuthController {
         if (email == null || email.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
         }
+        if (!AuthService.isValidEmailFormat(email)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "That doesn't look like a valid email address");
+        }
         if (password == null || password.length() < MIN_PASSWORD_LENGTH) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Password must be at least " + MIN_PASSWORD_LENGTH + " characters");
+        }
+        // BCrypt ignores everything past 72 bytes, so without this a longer passphrase is
+        // silently truncated: the account would then authenticate on its first 72 bytes
+        // alone, giving the user materially less security than the one they chose. Better
+        // to say so than to quietly accept a password we do not fully use. Measured in
+        // bytes, not chars -- a non-ASCII passphrase reaches the limit sooner.
+        if (password.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Password must be at most " + MAX_PASSWORD_BYTES + " bytes");
         }
     }
 }
