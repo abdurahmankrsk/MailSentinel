@@ -4,7 +4,7 @@
   "private": true,
   "description": "MailSentinel browser extension: scan the email you are reading, in place.",
   "scripts": {
-    "test": "node --test \"tests/*.test.js\""
+    "test": "node --test"
   },
   "devDependencies": {
     "jsdom": "^25.0.1"
