@@ -61,6 +61,72 @@ class ScanPipelineTest {
         assertTrue(response.checks().stream().anyMatch(c -> c.name().contains("TLD swap") && !c.passed()));
     }
 
+    /**
+     * A brand's own country-specific domains are not typosquats of its .com.
+     *
+     * Treating amazon.com as the only real Amazon domain made the TLD-swap check fire on
+     * every regional domain the brand actually sends from -- see the email case below for
+     * why that mattered so much more than one 45-point signal suggests.
+     */
+    @Test
+    void testRegionalBrandDomainsAreNotTldSwaps() {
+        List<String> legitimate = List.of(
+            "https://www.amazon.co.uk/deals",
+            "https://www.amazon.de",
+            "https://www.google.co.uk",
+            "https://www.apple.co.uk",
+            "https://www.paypal.co.uk",
+            "https://www.ebay.de"
+        );
+        for (String url : legitimate) {
+            ScanResponse response = scoringService.scanUrl(url);
+            assertEquals(0, response.score(), "Expected a clean score for legitimate " + url
+                + ", got failing checks: " + response.checks().stream()
+                    .filter(c -> !c.passed()).map(CheckResult::name).toList());
+        }
+    }
+
+    /**
+     * The regression this whole change exists for: a genuine, fully-authenticated
+     * amazon.co.uk email used to score 100/100 "treat this as hostile" because the TLD
+     * swap (45), display-name (45) and in-body link (55) checks all fired on the single
+     * fact that .co.uk is not .com, and a capped sum turned that into a maximum verdict.
+     */
+    @Test
+    void testLegitimateRegionalBrandEmailScoresClean() {
+        String eml = """
+            From: Amazon.co.uk <no-reply@amazon.co.uk>
+            To: customer@example.com
+            Subject: Your Amazon.co.uk order has dispatched
+            Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=amazon.co.uk; dkim=pass; dmarc=pass
+            Content-Type: text/html
+
+            <html><body><p>Your order has dispatched.</p>
+            <a href="https://www.amazon.co.uk/orders">Track your parcel</a></body></html>
+            """;
+        ScanResponse response = scoringService.scanEmail(eml);
+
+        assertTrue(response.score() < 30,
+            "Legitimate regional brand email should be low risk, got " + response.score()
+                + " from " + response.checks().stream()
+                    .filter(c -> !c.passed()).map(CheckResult::name).toList());
+        assertTrue(response.checks().stream()
+            .noneMatch(c -> c.name().contains("TLD swap") && !c.passed()));
+        assertTrue(response.checks().stream()
+            .noneMatch(c -> c.name().contains("display name") && !c.passed()));
+        assertTrue(response.checks().stream()
+            .noneMatch(c -> c.name().contains("Suspicious links") && !c.passed()));
+    }
+
+    /** The fix must not blunt the signal it was narrowing: a real TLD swap still fires. */
+    @Test
+    void testUnownedTldVariantIsStillFlagged() {
+        for (String url : List.of("http://paypal.co", "http://amazon.co.jp.ru", "http://google.tk")) {
+            ScanResponse response = scoringService.scanUrl(url);
+            assertTrue(response.score() > 0, "Expected " + url + " to still be flagged");
+        }
+    }
+
     @Test
     void testUrlRawIpAddress() {
         ScanResponse response = scoringService.scanUrl("http://192.168.1.1/login");
