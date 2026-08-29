@@ -17,17 +17,19 @@ existing suite does not cover.
 
 ## Summary
 
+Status: **#1, #4, #8 and #9 are fixed** (see "Resolved" below). The rest stand as written.
+
 | # | Severity | Area | Finding |
 |---|---|---|---|
-| 1 | 🔴 | Detection | Legitimate regional brand mail (`amazon.co.uk`) scores **100/100 "HIGH RISK"** |
+| 1 | ✅ 🔴 | Detection | ~~Legitimate regional brand mail (`amazon.co.uk`) scores **100/100 "HIGH RISK"**~~ — fixed |
 | 2 | 🔴 | Security | **SSRF** — user-supplied AI base URL is fetched server-side, works as an internal port scanner |
 | 3 | 🔴 | Payment | **No payment system exists**; Premium is unobtainable and the advertised Enterprise tier isn't implemented |
-| 4 | 🟠 | Auth | No server-side email-format validation — defeats the disposable-address gate |
+| 4 | ✅ 🟠 | Auth | ~~No server-side email-format validation — defeats the disposable-address gate~~ — fixed |
 | 5 | 🟠 | Detection | "Brand + word" domains (`paypal-secure.com`) score **0/100 clean** |
 | 6 | 🟠 | Abuse | No rate limiting anywhere — credential brute force, signup flood, scan abuse |
 | 7 | 🟠 | Auth | No password reset, email verification, password change, or account deletion |
-| 8 | 🟡 | Auth | Over-long email returns **HTTP 500** instead of 400 |
-| 9 | 🟡 | Auth | BCrypt silently truncates passwords at 72 bytes |
+| 8 | ✅ 🟡 | Auth | ~~Over-long email returns **HTTP 500** instead of 400~~ — fixed |
+| 9 | ✅ 🟡 | Auth | ~~BCrypt silently truncates passwords at 72 bytes~~ — fixed |
 | 10 | 🟡 | UI | Auth dialog title desyncs from the selected tab |
 | 11 | 🟡 | Detection | Unparseable email scores 20 and leaks the internal `unknown` placeholder |
 | 12 | 🟡 | UI | Plans/"Upgrade to PREMIUM" are dead ends; signup CTA shown to signed-in users |
@@ -615,11 +617,55 @@ Worth recording, so the report isn't read as uniformly negative:
 
 ---
 
+## Resolved
+
+Fixed after the initial report. Full suite green at **175 tests**, up from 165 — every
+fix landed with a regression test that fails against the old behaviour.
+
+**#1 — regional brand false-positive cascade.** `BrandConstants` now models a brand as a
+*set* of owned domains (`amazon` → `amazon.com, amazon.co.uk, amazon.de, …`) rather than a
+single string, with the primary domain still the edit-distance target and the name used in
+findings. Because `BRAND_SET` is now the union of every owned domain, the existing
+`BRAND_SET.contains(...)` short-circuits in the edit-distance, character-substitution,
+homoglyph, TLD-swap and brand-subdomain checks all inherit the fix. `LookalikeDetector`'s
+display-name check compares against the brand's whole owned set via
+`BrandConstants.isOwnedByBrand`, so "Amazon.co.uk" reads as backed up by its sending
+domain. The amazon.co.uk email that scored **100/100** now scores **0**, while
+`paypal.co` and other genuine swaps still fire.
+
+One implementation note worth keeping: the owned-domain map is a `LinkedHashMap` wrapped
+in `Collections.unmodifiableMap`, **not** `Map.copyOf` — the latter has unspecified
+iteration order, which would randomise `BRAND_DOMAINS` between JVM runs and with it the
+brand named in each finding.
+
+The regional coverage is deliberately partial. Membership asserts a domain is *safe*, so
+a missing entry costs a false positive while a wrong one silently allowlists a phishing
+domain — extend it as false positives are reported, not speculatively.
+
+**#4 — email format validation.** `AuthService.isValidEmailFormat` is the single
+definition, enforced both at the controller edge and inside `register()` so it holds for
+every caller. All ten malformed addresses from the report now return 400. This also
+closes the hole underneath the disposable-address gate: that check reads the text after
+the last `@`, so `notanemail` previously had no domain to match and bypassed the policy
+entirely.
+
+**#8 — 500 on an over-long email.** A `MAX_EMAIL_LENGTH` of 254 (RFC 5321's ceiling,
+inside the `varchar(320)` column) rejects it up front, and `ApiExceptionHandler` gained a
+`DataIntegrityViolationException` handler as a backstop so no future column constraint
+can surface as a 500 either. The handler does not echo the exception message, which
+carries the SQL statement and column definition.
+
+**#9 — BCrypt truncation.** Registration now rejects passwords over 72 **bytes**
+(measured in bytes, not characters, so a non-ASCII passphrase hits the limit correctly)
+rather than accepting one and silently hashing only its prefix. Exactly 72 still works.
+
+---
+
 ## Suggested order of work
 
-1. **#1** — the false-positive cascade is actively harmful and is a small, contained fix.
-2. **#2** — SSRF; ship the egress guard before any public deployment.
-3. **#4 + #8** — one validation change closes both.
+1. ~~**#1** — the false-positive cascade~~ ✅ done.
+2. **#2** — SSRF; ship the egress guard before any public deployment. **Now the top item.**
+3. ~~**#4 + #8**~~ ✅ done, along with #9.
 4. **#6 + #7** — abuse controls and account recovery; both need doing before real users.
 5. **#3** — decide: build checkout, or stop advertising prices. Don't leave it as is.
 6. **#5 + #13** — the detection-coverage work, best done together.
