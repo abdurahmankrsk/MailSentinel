@@ -301,8 +301,13 @@ public class LookalikeDetector {
             return null;
         }
         // Sent from any one of the brands it names -- that's just correctly-branded mail.
+        //
+        // Matched against the brand's whole owned-domain set rather than its primary
+        // domain alone, so "Amazon.co.uk" <no-reply@amazon.co.uk> reads as a display name
+        // its sending domain backs up. Comparing only against amazon.com made every
+        // regional brand domain look like impersonation of itself.
         for (String brand : namedBrands) {
-            if (domain.equalsIgnoreCase(brand)) {
+            if (BrandConstants.isOwnedByBrand(domain, brand)) {
                 return null;
             }
         }
