@@ -90,6 +90,12 @@ public class LinkAnalysisService {
         return links;
     }
 
+    /**
+     * Deduplicated and capped at {@link ScoringConstants#MAX_LINKS_PER_SCAN}, the same
+     * bound the URL path has always applied to a pasted list. The cap sits after
+     * deduplication so an email that repeats one link 200 times still gets every
+     * distinct link it contains looked at.
+     */
     public List<ExtractedLink> extractLinks(String textBody, String htmlBody) {
         List<ExtractedLink> sourceLinks = htmlBody != null ? extractFromHtml(htmlBody) : List.of();
         if (sourceLinks.isEmpty() && textBody != null) {
@@ -99,6 +105,9 @@ public class LinkAnalysisService {
         List<ExtractedLink> uniqueLinks = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (ExtractedLink link : sourceLinks) {
+            if (uniqueLinks.size() >= ScoringConstants.MAX_LINKS_PER_SCAN) {
+                break;
+            }
             if (seen.add(link.href())) {
                 uniqueLinks.add(link);
             }
@@ -174,7 +183,7 @@ public class LinkAnalysisService {
                 ScoringConstants.getWeight("link_lookalike"),
                 lookalikeHits.isEmpty()
                     ? "No lookalike brand domains found among links in the body"
-                    : String.join("; ", lookalikeHits)
+                    : ScoringConstants.joinHits(lookalikeHits)
             ),
             new CheckResult(
                 "URL shortener present",
@@ -182,7 +191,7 @@ public class LinkAnalysisService {
                 ScoringConstants.getWeight("url_shortener"),
                 shortenerHits.isEmpty()
                     ? "No known URL-shortener domains found in links"
-                    : "Shortened link(s) found: " + String.join(", ", shortenerHits)
+                    : "Shortened link(s) found: " + ScoringConstants.joinHits(shortenerHits)
             ),
             new CheckResult(
                 "Anchor text / link destination mismatch",
@@ -190,7 +199,7 @@ public class LinkAnalysisService {
                 ScoringConstants.getWeight("anchor_mismatch"),
                 mismatchHits.isEmpty()
                     ? "No anchor text found that names a different domain than its link target"
-                    : String.join("; ", mismatchHits)
+                    : ScoringConstants.joinHits(mismatchHits)
             ),
             new CheckResult(
                 "Raw IP address as link host",
@@ -198,7 +207,7 @@ public class LinkAnalysisService {
                 ScoringConstants.getWeight("ip_hostname"),
                 ipHostHits.isEmpty()
                     ? "No links use a raw IP address as the host"
-                    : "Link(s) use a raw IP address instead of a domain: " + String.join(", ", ipHostHits)
+                    : "Link(s) use a raw IP address instead of a domain: " + ScoringConstants.joinHits(ipHostHits)
             )
         );
     }

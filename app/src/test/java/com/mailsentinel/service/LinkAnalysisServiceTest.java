@@ -1,5 +1,6 @@
 package com.mailsentinel.service;
 
+import com.mailsentinel.config.ScoringConstants;
 import com.mailsentinel.dto.CheckResult;
 import com.mailsentinel.dto.ExtractedLink;
 import org.junit.jupiter.api.Test;
@@ -111,6 +112,52 @@ class LinkAnalysisServiceTest {
         // message is usually the same content and would only produce duplicates.
         assertEquals("http://html.com",
                 service.extractLinks("visit http://text-only.com", "<a href='http://html.com'>x</a>").get(0).href());
+    }
+
+    @Test
+    void extractionIsCappedSoAHugeBodyCannotDriveUnboundedWork() {
+        StringBuilder body = new StringBuilder();
+        for (int i = 0; i < 500; i++) {
+            body.append("<a href='http://paypa1-").append(i).append(".com'>link</a>");
+        }
+
+        List<ExtractedLink> links = service.extractLinks(null, body.toString());
+
+        // Each extracted link runs analyzeDomain across every watched brand and five
+        // techniques; without the cap this endpoint is a cheap CPU sink for anyone.
+        assertEquals(ScoringConstants.MAX_LINKS_PER_SCAN, links.size());
+    }
+
+    @Test
+    void theCapAppliesAfterDeduplicationNotBefore() {
+        StringBuilder body = new StringBuilder();
+        for (int i = 0; i < 200; i++) {
+            body.append("<a href='http://same.com'>link</a>");
+        }
+        body.append("<a href='http://different.com'>link</a>");
+
+        List<ExtractedLink> links = service.extractLinks(null, body.toString());
+
+        // 200 copies of one link must not crowd out the one link that differs.
+        assertEquals(2, links.size());
+        assertEquals("http://different.com", links.get(1).href());
+    }
+
+    @Test
+    void anAggregatedDetailNamesTheFirstHitsAndCountsTheRest() {
+        List<ExtractedLink> links = new java.util.ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            links.add(new ExtractedLink("http://" + i + ".paypa1.com"));
+        }
+
+        String detail = check(links, "Suspicious links in body").detail();
+
+        // Bounded response, and honest about being bounded -- a silently truncated
+        // list reads as a complete one. The exact count isn't asserted here because a
+        // single link can trip more than one technique; ScoringConstantsTest pins the
+        // arithmetic.
+        assertEquals(ScoringConstants.MAX_HITS_PER_DETAIL, detail.split("; ").length - 1, detail);
+        assertTrue(detail.matches(".*; \\.\\.\\.and \\d+ more$"), detail);
     }
 
     @Test

@@ -18,9 +18,6 @@ import java.util.Map;
 @Service
 public class ScoringService {
 
-    /** Sanity bound on a single paste, so a huge dump can't turn into unbounded work. */
-    private static final int MAX_URLS_PER_SCAN = 50;
-
     private static final Map<String, String> LOOKALIKE_LABELS = new LinkedHashMap<>() {{
         put("edit_distance", "edit-distance");
         put("char_substitution", "character substitution");
@@ -151,7 +148,7 @@ public class ScoringService {
         }
         return Arrays.stream(raw.trim().split("\\s+"))
             .filter(s -> !s.isBlank())
-            .limit(MAX_URLS_PER_SCAN)
+            .limit(ScoringConstants.MAX_LINKS_PER_SCAN)
             .toList();
     }
 
@@ -165,7 +162,7 @@ public class ScoringService {
             name,
             hits.isEmpty(),
             ScoringConstants.getWeight(weightKey),
-            hits.isEmpty() ? passedDetail : String.join("; ", hits)
+            hits.isEmpty() ? passedDetail : ScoringConstants.joinHits(hits)
         );
     }
 

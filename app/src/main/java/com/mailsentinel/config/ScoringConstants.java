@@ -1,5 +1,6 @@
 package com.mailsentinel.config;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -13,6 +14,40 @@ import java.util.Set;
  */
 public final class ScoringConstants {
     private ScoringConstants() {}
+
+    /**
+     * Sanity bound on a single scan, so a huge paste can't turn into unbounded work.
+     *
+     * Shared by both scan paths on purpose. The URL path capped its split input from
+     * the start; the email path did not, and each extracted anchor runs analyzeDomain
+     * across every watched brand and five techniques, Levenshtein among them. A 1.4 MB
+     * email carrying 20,000 unique lookalike anchors held a request thread for over a
+     * second of near-pure CPU on an endpoint that needs no account and allows any
+     * origin -- enough concurrent requests to saturate the pool cost the sender
+     * nothing.
+     */
+    public static final int MAX_LINKS_PER_SCAN = 50;
+
+    /**
+     * How many individual hits a single aggregated check detail spells out before it
+     * summarizes the rest. Reading past a handful tells nobody anything new, and the
+     * cap keeps the response bounded even where the input isn't.
+     */
+    public static final int MAX_HITS_PER_DETAIL = 10;
+
+    /**
+     * Joins the hits behind one aggregated check into its detail string, naming the
+     * first {@link #MAX_HITS_PER_DETAIL} and counting the remainder. Without the
+     * count the reader has no way to tell a truncated list from a complete one.
+     */
+    public static String joinHits(List<String> hits) {
+        if (hits.size() <= MAX_HITS_PER_DETAIL) {
+            return String.join("; ", hits);
+        }
+        int hidden = hits.size() - MAX_HITS_PER_DETAIL;
+        return String.join("; ", hits.subList(0, MAX_HITS_PER_DETAIL))
+                + "; ...and " + hidden + " more";
+    }
 
     public static final Set<String> SHORTENER_DOMAINS = Set.of(
         "bit.ly",
