@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.net.InetAddress;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +47,7 @@ class AiAnalysisServiceTest {
     private AiAnalysisService service;
 
     private static final Long USER_ID = 42L;
+    private static final String PUBLIC_ADDRESS = "93.184.216.34";
 
     @BeforeEach
     void setUp() {
@@ -59,8 +61,18 @@ class AiAnalysisServiceTest {
         // short-circuit it entirely, so default to "no key configured" here and let
         // the dedicated BYOK tests below override this per-test.
         when(aiKeyService.activeKeyFor(any())).thenReturn(Optional.empty());
-        service = new AiAnalysisService(subscriptionService, usageService, idempotencyService, aiProvider,
-                aiKeyService, aiProviderFactory, new ObjectMapper(), 35, 4);
+        service = serviceWithGuard(guardResolving(PUBLIC_ADDRESS));
+    }
+
+    private AiAnalysisService serviceWithGuard(OutboundUrlGuard guard) {
+        return new AiAnalysisService(subscriptionService, usageService, idempotencyService, aiProvider,
+                aiKeyService, aiProviderFactory, guard, new ObjectMapper(), 35, 4);
+    }
+
+    // Stubbed rather than the production resolver: the own-key tests below use real
+    // hostnames, and none of them should depend on a live DNS lookup succeeding.
+    private static OutboundUrlGuard guardResolving(String address) {
+        return new OutboundUrlGuard(false, host -> new InetAddress[]{InetAddress.getByName(address)});
     }
 
     // The public constructor doesn't accept an id (JPA generates it); reflection sets
@@ -301,5 +313,24 @@ class AiAnalysisServiceTest {
         assertEquals(AiAnalysisStatus.AI_PROVIDER_ERROR, result.aiAnalysis().status());
         assertEquals(deterministic().score(), result.score(), "score stays deterministic-only when the own-key call fails");
         verifyNoInteractions(subscriptionService, usageService, idempotencyService, aiProvider);
+    }
+
+    /**
+     * The saved base URL passed the guard once, at save time. If the name it points at
+     * now answers with a private address -- DNS rebinding -- the scan must not make the
+     * call, and the deterministic result must still come back.
+     */
+    @Test
+    void ownKeyEndpointIsRecheckedAtScanTimeAndSkippedIfItNowResolvesPrivate() {
+        service = serviceWithGuard(guardResolving("169.254.169.254"));
+        User user = userWith(USER_ID);
+        ActiveAiKey ownKey = new ActiveAiKey("https://rebind.example.com/v1", "some-model", "user-supplied-key");
+        when(aiKeyService.activeKeyFor(USER_ID)).thenReturn(Optional.of(ownKey));
+
+        ScanResponse result = service.analyze(user, "email", "content", deterministic(), null);
+
+        assertEquals(AiAnalysisStatus.AI_PROVIDER_ERROR, result.aiAnalysis().status());
+        assertEquals(deterministic().score(), result.score());
+        verifyNoInteractions(aiProviderFactory, subscriptionService, usageService, idempotencyService, aiProvider);
     }
 }

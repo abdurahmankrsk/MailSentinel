@@ -59,10 +59,10 @@ export default function BringYourOwnKey({ email, aiKeyStatus, onStatusChange, on
       <h2 id="byok-title" className="section-title">Bring your own AI key</h2>
       <p className="section-lede">
         Every check on this page is already free. Add an API key from any AI provider
-        (OpenAI, Groq, Together, DeepSeek, a self-hosted model, or anything else that
-        speaks the OpenAI chat-completions format) and your scans get AI-assisted
-        analysis too, at no extra cost from us and with no MailSentinel allowance
-        involved.
+        (OpenAI, Groq, Together, DeepSeek, or anything else that speaks the OpenAI
+        chat-completions format over a public HTTPS endpoint) and your scans get
+        AI-assisted analysis too, at no extra cost from us and with no MailSentinel
+        allowance involved.
       </p>
 
       {!email ? (

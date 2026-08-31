@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.net.InetAddress;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +26,7 @@ class AiKeyServiceTest {
     private static final Long USER_ID = 42L;
     private static final String BASE_URL = "https://api.groq.com/openai/v1";
     private static final String MODEL = "llama-3.3-70b-versatile";
+    private static final String PUBLIC_ADDRESS = "93.184.216.34";
 
     private UserAiKeyRepository repository;
     private AiKeyCipher cipher;
@@ -40,7 +42,14 @@ class AiKeyServiceTest {
         probeProvider = mock(AiProvider.class);
         when(cipher.isConfigured()).thenReturn(true);
         when(aiProviderFactory.create(any(), any(), any())).thenReturn(probeProvider);
-        service = new AiKeyService(repository, cipher, aiProviderFactory);
+        service = new AiKeyService(repository, cipher, aiProviderFactory, guardResolving(PUBLIC_ADDRESS));
+    }
+
+    // A stubbed resolver, not the production one: these tests are about AiKeyService's
+    // handling of the guard's verdict, and a real lookup of api.groq.com would make
+    // every one of them depend on DNS. OutboundUrlGuardTest covers the verdict itself.
+    private static OutboundUrlGuard guardResolving(String address) {
+        return new OutboundUrlGuard(false, host -> new InetAddress[]{InetAddress.getByName(address)});
     }
 
     @Test
@@ -59,6 +68,41 @@ class AiKeyServiceTest {
                 () -> service.save(USER_ID, "Groq", "ftp://not-http.example.com", MODEL, "a-valid-looking-key"));
 
         assertEquals(400, ex.getStatusCode().value());
+    }
+
+    @Test
+    void saveRejectsAPlaintextHttpBaseUrl() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.save(USER_ID, "Groq", "http://api.groq.com/openai/v1", MODEL, "a-valid-looking-key"));
+
+        assertEquals(400, ex.getStatusCode().value());
+        verify(aiProviderFactory, never()).create(any(), any(), any());
+    }
+
+    @Test
+    void saveRefusesAnEndpointResolvingToAPrivateAddressWithoutCallingIt() {
+        service = new AiKeyService(repository, cipher, aiProviderFactory, guardResolving("127.0.0.1"));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.save(USER_ID, "x", "https://rebind.example.com/v1", MODEL, "a-valid-looking-key"));
+
+        assertEquals(400, ex.getStatusCode().value());
+        // The point of the guard: the outbound request never happens at all.
+        verify(aiProviderFactory, never()).create(any(), any(), any());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void saveDoesNotEchoTheUpstreamErrorBackToTheCaller() throws Exception {
+        when(probeProvider.analyze(any(), isNull()))
+                .thenThrow(new AiProviderException("I/O error on POST request for \"http://127.0.0.1:1/api\""));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.save(USER_ID, "Groq", BASE_URL, MODEL, "a-bad-but-long-enough-key"));
+
+        // Reflecting the transport error told an attacker an open internal port from a
+        // closed one; the reply has to be the same either way.
+        assertEquals("That API key or endpoint could not be reached", ex.getReason());
     }
 
     @Test

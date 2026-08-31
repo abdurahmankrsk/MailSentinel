@@ -13,6 +13,8 @@ import com.mailsentinel.subscription.SubscriptionService;
 import com.mailsentinel.usage.ReservationResult;
 import com.mailsentinel.usage.UsagePeriod;
 import com.mailsentinel.usage.UsageService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -34,12 +36,15 @@ import java.util.Optional;
 @Service
 public class AiAnalysisService {
 
+    private static final Logger log = LoggerFactory.getLogger(AiAnalysisService.class);
+
     private final SubscriptionService subscriptionService;
     private final UsageService usageService;
     private final IdempotencyService idempotencyService;
     private final AiProvider aiProvider;
     private final AiKeyService aiKeyService;
     private final AiProviderFactory aiProviderFactory;
+    private final OutboundUrlGuard outboundUrlGuard;
     private final ObjectMapper objectMapper;
     private final int maxFindingWeight;
     private final int maxFindingCount;
@@ -51,6 +56,7 @@ public class AiAnalysisService {
             AiProvider aiProvider,
             AiKeyService aiKeyService,
             AiProviderFactory aiProviderFactory,
+            OutboundUrlGuard outboundUrlGuard,
             ObjectMapper objectMapper,
             @Value("${mailsentinel.ai.finding.max-weight:35}") int maxFindingWeight,
             @Value("${mailsentinel.ai.finding.max-count:4}") int maxFindingCount
@@ -61,6 +67,7 @@ public class AiAnalysisService {
         this.aiProvider = aiProvider;
         this.aiProviderFactory = aiProviderFactory;
         this.aiKeyService = aiKeyService;
+        this.outboundUrlGuard = outboundUrlGuard;
         this.objectMapper = objectMapper;
         this.maxFindingWeight = maxFindingWeight;
         this.maxFindingCount = maxFindingCount;
@@ -160,9 +167,23 @@ public class AiAnalysisService {
      * A fresh, throwaway client is built for this one call since the user's base
      * URL and model can differ from this server's own configured provider; the
      * shared aiProvider bean is only for the PREMIUM path below.
+     *
+     * The stored base URL is re-checked here rather than trusted because it passed
+     * OutboundUrlGuard once at save time. A hostname that resolved to a public
+     * address then can resolve to 127.0.0.1 now -- DNS rebinding walks straight
+     * through a save-time-only check, and this endpoint runs on every scan.
      */
     private ScanResponse analyzeWithOwnKey(String type, String content, ScanResponse deterministic, ActiveAiKey ownKey) {
         AiAnalysisRequest aiRequest = new AiAnalysisRequest(type, content, deterministic.score(), deterministic.checks());
+        try {
+            outboundUrlGuard.requirePublicHttpsEndpoint(ownKey.baseUrl());
+        } catch (BlockedEndpointException e) {
+            log.warn("{}", e.getMessage());
+            return withMeta(deterministic, new AiAnalysisMeta(
+                    AiAnalysisStatus.AI_PROVIDER_ERROR, null,
+                    "AI analysis was skipped: " + e.userMessage(),
+                    null, null, null, null));
+        }
         AiProvider ownProvider = aiProviderFactory.create(ownKey.baseUrl(), ownKey.model(), ownKey.apiKey());
         try {
             AiAnalysisResult rawResult = ownProvider.analyze(aiRequest, null);

@@ -1,10 +1,13 @@
 package com.mailsentinel.ai;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -13,25 +16,35 @@ import java.util.Optional;
  * AiAnalysisService, which checks here first.
  *
  * Not limited to a named provider: any OpenAI-compatible chat-completions endpoint
- * works (OpenAI, Groq, Together, DeepSeek, a self-hosted Ollama, and others), since
- * the user supplies their own base URL and model alongside the key. GroqAiProvider
- * is a plain OpenAI-compatible client despite its name (see its own class comment)
- * and is reused directly here rather than adding a second implementation of the
- * same wire protocol.
+ * works (OpenAI, Groq, Together, DeepSeek, and others), since the user supplies
+ * their own base URL and model alongside the key. GroqAiProvider is a plain
+ * OpenAI-compatible client despite its name (see its own class comment) and is
+ * reused directly here rather than adding a second implementation of the same wire
+ * protocol.
+ *
+ * The base URL is caller-supplied and this server then fetches it, so every save
+ * passes OutboundUrlGuard first -- public HTTPS only. That rules out a self-hosted
+ * model on localhost or a LAN unless the operator opts back in with
+ * mailsentinel.byok.allow-private-endpoints.
  */
 @Service
 public class AiKeyService {
+
+    private static final Logger log = LoggerFactory.getLogger(AiKeyService.class);
 
     private static final int MIN_KEY_LENGTH = 10;
 
     private final UserAiKeyRepository repository;
     private final AiKeyCipher cipher;
     private final AiProviderFactory aiProviderFactory;
+    private final OutboundUrlGuard outboundUrlGuard;
 
-    public AiKeyService(UserAiKeyRepository repository, AiKeyCipher cipher, AiProviderFactory aiProviderFactory) {
+    public AiKeyService(UserAiKeyRepository repository, AiKeyCipher cipher, AiProviderFactory aiProviderFactory,
+                        OutboundUrlGuard outboundUrlGuard) {
         this.repository = repository;
         this.cipher = cipher;
         this.aiProviderFactory = aiProviderFactory;
+        this.outboundUrlGuard = outboundUrlGuard;
     }
 
     public boolean isFeatureEnabled() {
@@ -40,8 +53,9 @@ public class AiKeyService {
 
     public AiKeyStatus save(Long userId, String label, String baseUrl, String model, String rawKey) {
         requireFeatureEnabled();
-        if (baseUrl == null || !(baseUrl.startsWith("http://") || baseUrl.startsWith("https://"))) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "That doesn't look like a valid API base URL");
+        if (baseUrl == null || !baseUrl.trim().toLowerCase(Locale.ROOT).startsWith("https://")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "That doesn't look like a valid API base URL -- it has to start with https://");
         }
         if (model == null || model.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A model name is required");
@@ -54,6 +68,9 @@ public class AiKeyService {
         String trimmedModel = model.trim();
         String displayLabel = label == null || label.isBlank() ? "AI" : label.trim();
 
+        // Before the probe, not after: the probe is itself the outbound request the
+        // guard exists to stop.
+        requireCallableEndpoint(trimmedBaseUrl);
         validateAgainstEndpoint(trimmedBaseUrl, trimmedModel, trimmedKey);
 
         String ciphertext = cipher.encrypt(trimmedKey);
@@ -96,8 +113,28 @@ public class AiKeyService {
         try {
             probeProvider.analyze(probe, null);
         } catch (AiProviderException e) {
+            // Logged, never echoed. The upstream failure used to be returned verbatim,
+            // which told the caller apart an open internal port ("401 : [no body]") from
+            // a closed one ("I/O error on POST request") cleanly enough to map a network
+            // with. OutboundUrlGuard now refuses internal hosts outright, but a reflected
+            // transport error is a needless oracle regardless of where it points.
+            log.warn("Bring-your-own-key validation failed for endpoint {}: {}", baseUrl, e.getMessage());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "That API key doesn't work: " + e.getMessage());
+                    "That API key or endpoint could not be reached");
+        }
+    }
+
+    /**
+     * The egress guard, translated to the wire. Its exception names the host and the
+     * address that host resolved to, which is exactly the detail an SSRF probe is
+     * fishing for -- so that goes to the log, and the caller gets one fixed sentence.
+     */
+    private void requireCallableEndpoint(String baseUrl) {
+        try {
+            outboundUrlGuard.requirePublicHttpsEndpoint(baseUrl);
+        } catch (BlockedEndpointException e) {
+            log.warn("{}", e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.userMessage());
         }
     }
 
