@@ -71,6 +71,11 @@ export default function App() {
     clearSession()
     setEmail(null)
     setUsage(null)
+    // The results panel can hold a verdict on something pasted from a private
+    // mailbox, and logging out is the moment a user expects that to be gone --
+    // particularly on a shared machine.
+    setResult(null)
+    setError(null)
     // Drop the personal label/last4 but keep featureEnabled so the section at the
     // bottom of the page doesn't disappear just because you logged out.
     setAiKeyStatus((current) => (current ? { ...current, label: null, last4: null } : current))

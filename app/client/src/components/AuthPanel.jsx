@@ -2,11 +2,9 @@ import { useState } from 'react'
 import { loginUser, registerUser } from '../api.js'
 import GoogleSignInButton from './GoogleSignInButton.jsx'
 
-// `initialMode` seeds the tab only on mount. AuthModal keys this component by mode, so
-// opening the dialog from "Sign up" rather than "Log in" remounts it on the right tab
-// instead of needing an effect to sync the prop back into state.
-export default function AuthPanel({ onAuthenticated, initialMode = 'login' }) {
-  const [mode, setMode] = useState(initialMode)
+// `mode` is owned by the caller (AuthModal) rather than held here, so the dialog
+// heading and these tabs read from one value and cannot drift apart.
+export default function AuthPanel({ onAuthenticated, mode = 'login', onModeChange = () => {} }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
@@ -29,10 +27,10 @@ export default function AuthPanel({ onAuthenticated, initialMode = 'login' }) {
   return (
     <div className="auth-panel">
       <div className="type-toggle" role="radiogroup" aria-label="Auth mode">
-        <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>
+        <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => onModeChange('login')}>
           Log in
         </button>
-        <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>
+        <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => onModeChange('register')}>
           Register
         </button>
       </div>
