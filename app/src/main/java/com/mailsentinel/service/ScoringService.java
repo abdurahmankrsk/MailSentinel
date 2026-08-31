@@ -46,7 +46,15 @@ public class ScoringService {
         this.lookalikeDetector = lookalikeDetector;
     }
 
+    /**
+     * @param hostname the domain to examine, or null when none could be parsed -- the
+     *                 checks still all appear (a scan shows what it looked at), they
+     *                 just say there was nothing to look at
+     */
     private List<CheckResult> domainLookalikeChecks(String hostname, String labelPrefix) {
+        String subject = hostname == null || hostname.isBlank()
+            ? "the sender, whose domain could not be read from this message"
+            : hostname;
         List<LookalikeFinding> findingsList = lookalikeDetector.analyzeDomain(hostname);
         Map<String, LookalikeFinding> findings = new LinkedHashMap<>();
         for (LookalikeFinding f : findingsList) {
@@ -65,17 +73,28 @@ public class ScoringService {
                 ScoringConstants.getWeight(technique),
                 finding != null
                     ? finding.detail()
-                    : "No " + label + " pattern detected for " + hostname
+                    : "No " + label + " pattern detected for " + subject
             ));
         }
         return checks;
     }
 
     private CheckResult displayNameImpersonationCheck(String displayName, String senderDomain) {
-        LookalikeFinding finding = lookalikeDetector.checkDisplayNameImpersonation(displayName, senderDomain);
-        String passedDetail = displayName == null || displayName.isBlank()
-            ? "From header has no display name to compare against the sending domain"
-            : "Display name \"" + displayName + "\" does not claim a brand other than " + senderDomain;
+        // This check compares two halves of the From header, so it needs both. With no
+        // sending domain there is nothing for the display name to contradict -- the
+        // same reason it passes when there is no display name.
+        boolean noSenderDomain = senderDomain == null || senderDomain.isBlank();
+        LookalikeFinding finding = noSenderDomain
+            ? null
+            : lookalikeDetector.checkDisplayNameImpersonation(displayName, senderDomain);
+        String passedDetail;
+        if (noSenderDomain) {
+            passedDetail = "No sending domain could be read from this message to compare the display name against";
+        } else if (displayName == null || displayName.isBlank()) {
+            passedDetail = "From header has no display name to compare against the sending domain";
+        } else {
+            passedDetail = "Display name \"" + displayName + "\" does not claim a brand other than " + senderDomain;
+        }
         return new CheckResult(
             "Sender display name impersonation",
             finding == null,
@@ -117,7 +136,13 @@ public class ScoringService {
         checks.addAll(authHeaderService.toCheckResults(claimed));
 
         // 2. Live DNS SPF & DMARC checks + Agreement
-        String senderDomain = parsed.senderDomain() != null ? parsed.senderDomain() : "unknown";
+        //
+        // Left null when the From header couldn't be read, rather than substituted with
+        // the string "unknown". That placeholder was shown to the user as though it
+        // were a real domain ("No DMARC record found at _dmarc.unknown") and, worse,
+        // scored: two checks failed for 20 points because the tool couldn't read the
+        // input, which is the tool's problem, not the message's.
+        String senderDomain = parsed.senderDomain();
         LiveDnsResult live = dnsCheckService.verifySpfDmarc(senderDomain);
         checks.addAll(dnsCheckService.toCheckResults(senderDomain, live));
         checks.add(dnsCheckService.agreementCheck(claimed, live));

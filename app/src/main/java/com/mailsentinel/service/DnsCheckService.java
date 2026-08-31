@@ -79,10 +79,13 @@ public class DnsCheckService {
     }
 
     public LiveDnsResult verifySpfDmarc(String domain) {
-        if (domain == null || domain.isBlank() || "unknown".equalsIgnoreCase(domain)) {
-            // No domain to ask about is a parse outcome, not a DNS outcome: treat both
-            // lookups as resolved-and-absent so the checks behave as they always have.
-            return new LiveDnsResult(false, true, false, true, null);
+        if (domain == null || domain.isBlank()) {
+            // No domain to ask about is a parse outcome, not a DNS outcome. Marking
+            // both lookups *unresolved* routes it down the existing neutral path, so
+            // the checks pass rather than scoring the user 20 points for pasting a
+            // message body without its headers -- the same care already taken for a
+            // lookup that times out.
+            return new LiveDnsResult(false, false, false, false, null);
         }
 
         TxtLookup domainLookup = getTxtRecords(domain);
@@ -118,8 +121,17 @@ public class DnsCheckService {
         );
     }
 
+    /**
+     * @param domain the sending domain, or null when none could be parsed from the
+     *               message -- which is a distinct outcome from a lookup that failed,
+     *               and is worded as such rather than naming a placeholder domain
+     */
     public List<CheckResult> toCheckResults(String domain, LiveDnsResult live) {
         List<CheckResult> checks = new ArrayList<>();
+        boolean noSenderDomain = domain == null || domain.isBlank();
+        String noSenderDetail = "No sender domain could be read from this message, so SPF and DMARC "
+            + "were not checked. If you pasted only the message body, use \"Show original\" "
+            + "in your mail client and include the headers.";
 
         // SPF check. An unresolved lookup passes: we have no finding, and scoring a
         // failed query as though the domain published nothing punishes legitimate
@@ -128,17 +140,22 @@ public class DnsCheckService {
             "SPF record (live DNS)",
             !live.spfResolved() || live.spfPresent(),
             ScoringConstants.getWeight("spf_live"),
-            !live.spfResolved()
-                ? "Could not complete an SPF lookup for " + domain + "; scored as neutral, not as a missing record"
-                : live.spfPresent()
-                    ? domain + " publishes an SPF TXT record"
-                    : "No SPF TXT record found for " + domain
+            noSenderDomain
+                ? noSenderDetail
+                : !live.spfResolved()
+                    ? "Could not complete an SPF lookup for " + domain + "; scored as neutral, not as a missing record"
+                    : live.spfPresent()
+                        ? domain + " publishes an SPF TXT record"
+                        : "No SPF TXT record found for " + domain
         ));
 
         // DMARC check
         boolean dmarcPassed;
         String dmarcDetail;
-        if (!live.dmarcResolved()) {
+        if (noSenderDomain) {
+            dmarcPassed = true;
+            dmarcDetail = noSenderDetail;
+        } else if (!live.dmarcResolved()) {
             dmarcPassed = true;
             dmarcDetail = "Could not complete a DMARC lookup for " + domain
                 + "; scored as neutral, not as a missing record";

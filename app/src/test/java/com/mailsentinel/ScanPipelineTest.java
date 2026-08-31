@@ -269,6 +269,32 @@ class ScanPipelineTest {
             "Adding links must not multiply the number of checks the reader has to scan");
     }
 
+    /**
+     * Pasting a message body without its headers is an easy mistake -- the "Show
+     * original" instruction is the only thing standing between a user and this input.
+     * It used to score 20 and print "_dmarc.unknown" at them.
+     */
+    @Test
+    void aMessageWithNoReadableSenderIsNotScoredForTheParseFailure() {
+        ScanResponse response = scoringService.scanEmail(
+            "Hi there,\r\n\r\nYour invoice is attached.\r\n\r\nThanks,\r\nAccounts");
+
+        assertEquals(0, response.score(),
+            "the tool failing to read the input is not evidence against the message");
+        assertTrue(response.checks().stream().allMatch(CheckResult::passed));
+    }
+
+    @Test
+    void aMessageWithNoReadableSenderNeverShowsTheInternalPlaceholder() {
+        ScanResponse response = scoringService.scanEmail("Just a body, no headers at all.");
+
+        assertFalse(response.checks().stream().anyMatch(c -> c.detail().contains("unknown")),
+            "\"unknown\" is an internal sentinel, not a domain to show the user");
+        assertTrue(response.checks().stream()
+                .anyMatch(c -> c.name().startsWith("SPF record") && c.detail().contains("No sender domain")),
+            "the checks should say why they had nothing to check");
+    }
+
     @Test
     void testUnknownScanTypeIsRejectedRatherThanSilentlyTreatedAsUrl() {
         assertThrows(IllegalArgumentException.class, () -> scoringService.runScan("banana", "https://paypal.com"));
