@@ -17,12 +17,12 @@ existing suite does not cover.
 
 ## Summary
 
-Status: **#1, #4, #8 and #9 are fixed** (see "Resolved" below). The rest stand as written.
+Status: **#1, #2, #4, #8, #9, #10, #11, #14 and #17 are fixed** (see "Resolved" below). The rest stand as written.
 
 | # | Severity | Area | Finding |
 |---|---|---|---|
 | 1 | ✅ 🔴 | Detection | ~~Legitimate regional brand mail (`amazon.co.uk`) scores **100/100 "HIGH RISK"**~~ — fixed |
-| 2 | 🔴 | Security | **SSRF** — user-supplied AI base URL is fetched server-side, works as an internal port scanner |
+| 2 | ✅ 🔴 | Security | ~~**SSRF** — user-supplied AI base URL is fetched server-side, works as an internal port scanner~~ — fixed |
 | 3 | 🔴 | Payment | **No payment system exists**; Premium is unobtainable and the advertised Enterprise tier isn't implemented |
 | 4 | ✅ 🟠 | Auth | ~~No server-side email-format validation — defeats the disposable-address gate~~ — fixed |
 | 5 | 🟠 | Detection | "Brand + word" domains (`paypal-secure.com`) score **0/100 clean** |
@@ -30,14 +30,14 @@ Status: **#1, #4, #8 and #9 are fixed** (see "Resolved" below). The rest stand a
 | 7 | 🟠 | Auth | No password reset, email verification, password change, or account deletion |
 | 8 | ✅ 🟡 | Auth | ~~Over-long email returns **HTTP 500** instead of 400~~ — fixed |
 | 9 | ✅ 🟡 | Auth | ~~BCrypt silently truncates passwords at 72 bytes~~ — fixed |
-| 10 | 🟡 | UI | Auth dialog title desyncs from the selected tab |
-| 11 | 🟡 | Detection | Unparseable email scores 20 and leaks the internal `unknown` placeholder |
+| 10 | ✅ 🟡 | UI | ~~Auth dialog title desyncs from the selected tab~~ — fixed |
+| 11 | ✅ 🟡 | Detection | ~~Unparseable email scores 20 and leaks the internal `unknown` placeholder~~ — fixed |
 | 12 | 🟡 | UI | Plans/"Upgrade to PREMIUM" are dead ends; signup CTA shown to signed-in users |
 | 13 | 🟡 | Detection | 33-brand watch list — anything outside it is silently reported as clean |
-| 14 | 🟡 | Perf | Email link extraction is unbounded (URL scans cap at 50, email scans don't) |
+| 14 | ✅ 🟡 | Perf | ~~Email link extraction is unbounded (URL scans cap at 50, email scans don't)~~ — fixed |
 | 15 | 🟡 | Perf | DNS lookups uncached; first scan of a domain takes ~9 s, with no client timeout |
 | 16 | ⚪ | Legal | No Terms, Privacy Policy, or contact anywhere, despite EUR pricing |
-| 17 | ⚪ | Privacy | Scan results stay on screen after logout |
+| 17 | ✅ ⚪ | Privacy | ~~Scan results stay on screen after logout~~ — fixed |
 | 18 | ⚪ | Security | No CSP; session token in `localStorage` |
 | 19 | ⚪ | Frontend | `plan` returned by the auth API is discarded |
 
@@ -619,7 +619,7 @@ Worth recording, so the report isn't read as uniformly negative:
 
 ## Resolved
 
-Fixed after the initial report. Full suite green at **175 tests**, up from 165 — every
+Fixed after the initial report. Full suite green at **197 tests**, up from 165 — every
 fix landed with a regression test that fails against the old behaviour.
 
 **#1 — regional brand false-positive cascade.** `BrandConstants` now models a brand as a
@@ -659,14 +659,64 @@ carries the SQL statement and column definition.
 (measured in bytes, not characters, so a non-ASCII passphrase hits the limit correctly)
 rather than accepting one and silently hashing only its prefix. Exactly 72 still works.
 
+**#2 — SSRF via the bring-your-own-key base URL.** A new `OutboundUrlGuard` requires
+`https` and a host whose *every* resolved address is publicly routable — checking every
+address, not just the first, because a name answering with a public A record and a
+private AAAA record would otherwise be connected to over IPv6. It runs at save time
+**and** again on every scan that uses the key, which is the part that matters: a name
+that is public when the key is saved and private when it is used walks straight through
+a save-time-only check. Closing the remaining window entirely would mean pinning the
+resolved address and overriding the `Host` header inside the HTTP client.
+
+The upstream error is no longer reflected. `AiKeyService` logs the real reason and
+returns one fixed sentence, and the guard's own exception carries the operator-facing
+detail (which host, which address) separately from the user-facing text — "blocked
+because internal" versus "does not resolve" is itself the signal a port scan reads.
+
+Self-hosted endpoints on a private network are a real use of this feature, so
+`mailsentinel.byok.allow-private-endpoints` reopens them. It is off by default: on a
+deployment with open registration, an account is free, instant and unverified, so the
+guard has to be the closed direction. The BYOK section's copy and the `.env.example`
+say so now.
+
+**#11 — unreadable email scored 20 and leaked `unknown`.** The sender domain stays
+null when the From header can't be read, rather than being replaced with the literal
+string "unknown" that `verifySpfDmarc` then reported on as though it were a domain
+(`No DMARC record found at _dmarc.unknown`). "No sender domain" is now its own outcome:
+both lookups are marked *unresolved*, which routes them down the neutral path the
+codebase already uses for a lookup that times out, so a headerless paste scores **0**
+instead of 20. The lookalike and display-name checks still all appear — a scan shows
+what it looked at — and their details now say there was nothing to look at, plus how to
+fix it ("use Show original and include the headers").
+
+**#14 — unbounded email link extraction.** `MAX_LINKS_PER_SCAN` moved to
+`ScoringConstants` so the email path reads the same 50 the URL path always has, applied
+after deduplication so 200 copies of one link can't crowd out the one link that differs.
+Aggregated details now name the first 10 hits and count the rest, which bounds the
+response even where the input isn't — and says so, since a silently truncated list reads
+as a complete one.
+
+**#10 — auth dialog title desync.** `mode` moved up into `AuthModal`, so the heading and
+the tabs read from one value. The `key`-remount idiom moved up with it and still reseeds
+the mode when the dialog is reopened from the other button, without an effect syncing
+prop into state. Verified in a browser: opening on **Sign up** then clicking **Log in**
+now gives `{title: "Welcome back", tab: "Log in", button: "Log in"}`.
+
+**#17 — scan results persisted after logout.** `handleLogout` clears `result` and
+`error` too. Verified in a browser: the results panel is gone the moment you log out.
+
 ---
 
 ## Suggested order of work
 
 1. ~~**#1** — the false-positive cascade~~ ✅ done.
-2. **#2** — SSRF; ship the egress guard before any public deployment. **Now the top item.**
+2. ~~**#2** — SSRF~~ ✅ done, egress guard shipped.
 3. ~~**#4 + #8**~~ ✅ done, along with #9.
 4. **#6 + #7** — abuse controls and account recovery; both need doing before real users.
+   **Now the top item**, and #6 matters more than it did: the SSRF guard removed the
+   payload, but free, instant, unverified, unlimited accounts are still the thing that
+   made it cheap to try.
 5. **#3** — decide: build checkout, or stop advertising prices. Don't leave it as is.
 6. **#5 + #13** — the detection-coverage work, best done together.
-7. The remaining medium and low items as cleanup.
+7. The remaining medium and low items as cleanup — ~~#10, #11, #14, #17~~ ✅ done;
+   #12, #15, #16, #18, #19 stand.
