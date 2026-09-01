@@ -1,6 +1,12 @@
 package com.mailsentinel.auth;
 
+import com.mailsentinel.ratelimit.ClientIpResolver;
+import com.mailsentinel.ratelimit.LoginThrottle;
+import com.mailsentinel.ratelimit.RateLimitDecision;
+import com.mailsentinel.ratelimit.RateLimitProperties;
+import com.mailsentinel.ratelimit.RateLimitedException;
 import com.mailsentinel.subscription.SubscriptionService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,14 +30,20 @@ public class AuthController {
     private final AuthService authService;
     private final SubscriptionService subscriptionService;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final LoginThrottle loginThrottle;
+    private final RateLimitProperties rateLimitProperties;
 
     public AuthController(
             AuthService authService,
             SubscriptionService subscriptionService,
-            GoogleTokenVerifier googleTokenVerifier) {
+            GoogleTokenVerifier googleTokenVerifier,
+            LoginThrottle loginThrottle,
+            RateLimitProperties rateLimitProperties) {
         this.authService = authService;
         this.subscriptionService = subscriptionService;
         this.googleTokenVerifier = googleTokenVerifier;
+        this.loginThrottle = loginThrottle;
+        this.rateLimitProperties = rateLimitProperties;
     }
 
     /**
@@ -64,13 +76,38 @@ public class AuthController {
                 .body(new AuthResponse(registered.rawToken(), registered.user().getEmail(), plan));
     }
 
+    /**
+     * Throttled here rather than in RateLimitFilter because what deserves counting is
+     * a *failed* attempt, and only this method knows the outcome. A user signing in
+     * correctly, however often, is never limited -- and a success clears whatever
+     * failures preceded it.
+     *
+     * The blank-field case is counted as a failure too: it reaches the same
+     * INVALID_CREDENTIALS response, so leaving it uncounted would leave an unlimited
+     * path to probe with.
+     */
     @PostMapping("/login")
-    public AuthResponse login(@RequestBody LoginRequest request) {
-        if (request.email() == null || request.email().isBlank()
-                || request.password() == null || request.password().isBlank()) {
+    public AuthResponse login(@RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        String ip = ClientIpResolver.resolve(httpRequest, rateLimitProperties.isTrustForwardedFor());
+        String email = request.email();
+
+        RateLimitDecision blocked = loginThrottle.checkAllowed(ip, email);
+        if (blocked != null) {
+            throw new RateLimitedException(blocked.retryAfterSeconds());
+        }
+
+        if (email == null || email.isBlank() || request.password() == null || request.password().isBlank()) {
+            loginThrottle.recordFailure(ip, email);
             throw new InvalidCredentialsException();
         }
-        AuthService.RegisteredUser logged = authService.login(request.email(), request.password());
+        AuthService.RegisteredUser logged;
+        try {
+            logged = authService.login(email, request.password());
+        } catch (InvalidCredentialsException e) {
+            loginThrottle.recordFailure(ip, email);
+            throw e;
+        }
+        loginThrottle.recordSuccess(ip, email);
         String plan = subscriptionService.currentPlan(logged.user().getId()).name();
         return new AuthResponse(logged.rawToken(), logged.user().getEmail(), plan);
     }
