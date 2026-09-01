@@ -5,7 +5,9 @@ import com.mailsentinel.auth.EmailAlreadyRegisteredException;
 import com.mailsentinel.auth.GoogleAuthException;
 import com.mailsentinel.auth.InvalidCredentialsException;
 import com.mailsentinel.dto.ErrorResponse;
+import com.mailsentinel.ratelimit.RateLimitedException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -42,6 +44,20 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ErrorResponse("INVALID_CREDENTIALS", ex.getMessage()));
+    }
+
+    /**
+     * The 429 carries {@code Retry-After} so a client knows when to come back rather
+     * than retrying into the same wall. The message deliberately says nothing about
+     * which counter tripped -- per-IP or per-email -- since "this address is being
+     * limited" would confirm the address exists.
+     */
+    @ExceptionHandler(RateLimitedException.class)
+    public ResponseEntity<ErrorResponse> handleRateLimited(RateLimitedException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()))
+                .body(new ErrorResponse("RATE_LIMITED",
+                        "Too many attempts. Try again in " + ex.retryAfterSeconds() + " seconds."));
     }
 
     @ExceptionHandler(GoogleAuthException.class)
