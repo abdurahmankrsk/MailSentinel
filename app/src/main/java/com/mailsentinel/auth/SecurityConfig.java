@@ -1,6 +1,9 @@
 package com.mailsentinel.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mailsentinel.ratelimit.RateLimitFilter;
+import com.mailsentinel.ratelimit.RateLimitProperties;
+import com.mailsentinel.ratelimit.RateLimitService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -59,8 +62,17 @@ public class SecurityConfig {
     }
 
     @Bean
+    public RateLimitFilter rateLimitFilter(
+            RateLimitService rateLimitService, RateLimitProperties rateLimitProperties, ObjectMapper objectMapper) {
+        return new RateLimitFilter(rateLimitService, rateLimitProperties, objectMapper);
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http, BearerTokenAuthFilter bearerTokenAuthFilter, ObjectMapper objectMapper) throws Exception {
+            HttpSecurity http,
+            BearerTokenAuthFilter bearerTokenAuthFilter,
+            RateLimitFilter rateLimitFilter,
+            ObjectMapper objectMapper) throws Exception {
         AuthenticationEntryPoint jsonUnauthorizedEntryPoint = (request, response, authException) -> {
             response.setStatus(401);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
@@ -90,6 +102,10 @@ public class SecurityConfig {
                 .anyRequest().permitAll()
             )
             .addFilterBefore(bearerTokenAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            // Ahead of token authentication: a flood against /api/scan or /api/auth/register
+            // should be refused without a database round trip, and neither endpoint needs
+            // a resolved principal to decide.
+            .addFilterBefore(rateLimitFilter, BearerTokenAuthFilter.class)
             .httpBasic(AbstractHttpConfigurer::disable)
             .formLogin(AbstractHttpConfigurer::disable);
 
