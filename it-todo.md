@@ -17,7 +17,7 @@ existing suite does not cover.
 
 ## Summary
 
-Status: **#1, #2, #4, #8, #9, #10, #11, #14 and #17 are fixed** (see "Resolved" below). The rest stand as written.
+Status: **#1, #2, #4, #6, #8, #9, #10, #11, #14 and #17 are fixed** (see "Resolved" below). The rest stand as written.
 
 | # | Severity | Area | Finding |
 |---|---|---|---|
@@ -26,7 +26,7 @@ Status: **#1, #2, #4, #8, #9, #10, #11, #14 and #17 are fixed** (see "Resolved" 
 | 3 | 🔴 | Payment | **No payment system exists**; Premium is unobtainable and the advertised Enterprise tier isn't implemented |
 | 4 | ✅ 🟠 | Auth | ~~No server-side email-format validation — defeats the disposable-address gate~~ — fixed |
 | 5 | 🟠 | Detection | "Brand + word" domains (`paypal-secure.com`) score **0/100 clean** |
-| 6 | 🟠 | Abuse | No rate limiting anywhere — credential brute force, signup flood, scan abuse |
+| 6 | ✅ 🟠 | Abuse | ~~No rate limiting anywhere — credential brute force, signup flood, scan abuse~~ — fixed |
 | 7 | 🟠 | Auth | No password reset, email verification, password change, or account deletion |
 | 8 | ✅ 🟡 | Auth | ~~Over-long email returns **HTTP 500** instead of 400~~ — fixed |
 | 9 | ✅ 🟡 | Auth | ~~BCrypt silently truncates passwords at 72 bytes~~ — fixed |
@@ -619,7 +619,7 @@ Worth recording, so the report isn't read as uniformly negative:
 
 ## Resolved
 
-Fixed after the initial report. Full suite green at **197 tests**, up from 165 — every
+Fixed after the initial report. Full suite green at **215 tests**, up from 165 — every
 fix landed with a regression test that fails against the old behaviour.
 
 **#1 — regional brand false-positive cascade.** `BrandConstants` now models a brand as a
@@ -705,6 +705,49 @@ now gives `{title: "Welcome back", tab: "Log in", button: "Log in"}`.
 **#17 — scan results persisted after logout.** `handleLogout` clears `result` and
 `error` too. Verified in a browser: the results panel is gone the moment you log out.
 
+**#6 — no rate limiting anywhere.** A small `OncePerRequestFilter` and an in-process
+counter rather than Bucket4j — no new dependency, no schema change. Per-IP quotas on
+registration (3/h), Google sign-in (counted *with* registration, since it is the other
+way to create an account), anonymous scanning (60/min) and bring-your-own-key saves
+(5/h). The filter sits ahead of token authentication, so a flood is refused without a
+database round trip. Everything else, the static frontend included, is untouched.
+
+Login is throttled in the handler instead, because what deserves counting is a *failed*
+attempt and the filter runs too early to know. Two counters must both be under quota:
+per IP (5 failures / 15 min) stops one host working through a list of accounts, per
+email stops a botnet working one account from many hosts — the case the per-IP counter
+alone can be bought around. A success clears both, so nobody is locked out by their own
+correct sign-ins, and blank credentials are counted because they reach the same
+`INVALID_CREDENTIALS` answer.
+
+Verified live against the packaged jar at default settings, which is the QA report's own
+reproduction: 60 anonymous scans returned 200 and the 61st returned
+`429 · Retry-After: 50`; five failed logins returned 401 and the sixth returned
+`429 · Retry-After: 900`, where 25 in a row previously all returned 401.
+
+Two limits are deliberate and stated in `RateLimitService`'s own class comment rather
+than left to be discovered: **counters reset on restart**, and **each replica counts on
+its own**, so N replicas allow N times the quota. Neither justifies keeping zero
+limiting, and both are why this wants to move behind the existing datastore (or Redis)
+before the app runs multi-instance — the seam for that is `RateLimitService`, since
+nothing outside it knows where the counts live. The window is fixed rather than sliding,
+so the true worst case is 2x the limit across a window boundary; for an abuse ceiling
+that is fine. Exponential backoff on repeated login failures is not implemented.
+
+One setting needs care in deployment: `mailsentinel.rate-limit.trust-forwarded-for`.
+Behind the platform proxies the README targets, `getRemoteAddr()` is the proxy for every
+caller in the world and a per-IP limit read from it throttles all users as one; but
+`X-Forwarded-For` is caller-supplied, so trusting it with no proxy in front hands an
+attacker a fresh identity per request and disables the limiter silently. It defaults to
+`false` — the reading that over-counts when wrong rather than the one that stops
+counting.
+
+The per-email login counter is a denial-of-service lever by construction: anyone who
+knows an address can spend its failure budget for the window. That is the standard
+trade, and is why the window is short and the response is a 429 with `Retry-After`
+rather than an account lock a human has to undo. Warning the owner by mail is the usual
+next step and waits on the email delivery #7 needs.
+
 ---
 
 ## Suggested order of work
@@ -712,10 +755,10 @@ now gives `{title: "Welcome back", tab: "Log in", button: "Log in"}`.
 1. ~~**#1** — the false-positive cascade~~ ✅ done.
 2. ~~**#2** — SSRF~~ ✅ done, egress guard shipped.
 3. ~~**#4 + #8**~~ ✅ done, along with #9.
-4. **#6 + #7** — abuse controls and account recovery; both need doing before real users.
-   **Now the top item**, and #6 matters more than it did: the SSRF guard removed the
-   payload, but free, instant, unverified, unlimited accounts are still the thing that
-   made it cheap to try.
+4. ~~**#6**~~ ✅ done. **#7** — account recovery — is what remains of this pair, and is
+   **now the top item**: a user who forgets their password is still permanently locked
+   out, with no recovery path at all. It needs email delivery, which is the same
+   dependency verification and the "someone is trying to sign in" warning both want.
 5. **#3** — decide: build checkout, or stop advertising prices. Don't leave it as is.
 6. **#5 + #13** — the detection-coverage work, best done together.
 7. The remaining medium and low items as cleanup — ~~#10, #11, #14, #17~~ ✅ done;
