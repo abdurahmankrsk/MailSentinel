@@ -8,6 +8,7 @@ import com.mailsentinel.ratelimit.RateLimitedException;
 import com.mailsentinel.subscription.SubscriptionService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -112,6 +113,29 @@ public class AuthController {
         return new AuthResponse(logged.rawToken(), logged.user().getEmail(), plan);
     }
 
+    /**
+     * Authenticated (see SecurityConfig, which lists this path explicitly -- the rest
+     * of /api/auth is public), so currentUser is never null here.
+     *
+     * Returns a fresh token because succeeding revokes every token the user holds,
+     * this request's own included. Without the replacement, changing your password
+     * would sign you out of the device you changed it on.
+     */
+    @PostMapping("/change-password")
+    public AuthResponse changePassword(
+            @AuthenticationPrincipal User currentUser, @RequestBody ChangePasswordRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A current and new password are required");
+        }
+        // The same rules registration applies -- a password set here must not be one
+        // the signup form would have rejected.
+        validatePassword(request.newPassword());
+        String newToken = authService.changePassword(
+                currentUser.getId(), request.currentPassword(), request.newPassword());
+        String plan = subscriptionService.currentPlan(currentUser.getId()).name();
+        return new AuthResponse(newToken, currentUser.getEmail(), plan);
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@RequestHeader(value = "Authorization", required = false) String authorization) {
         if (authorization != null && authorization.startsWith("Bearer ")) {
@@ -128,6 +152,14 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "That doesn't look like a valid email address");
         }
+        validatePassword(password);
+    }
+
+    /**
+     * Split out of validate() so the change-password path enforces exactly the same
+     * rules as registration, rather than a second copy of them that can drift.
+     */
+    private void validatePassword(String password) {
         if (password == null || password.length() < MIN_PASSWORD_LENGTH) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Password must be at least " + MIN_PASSWORD_LENGTH + " characters");
