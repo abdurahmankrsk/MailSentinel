@@ -62,6 +62,13 @@ export default function App() {
 
   function handleAuthenticated(data) {
     setSession(data.token, data.email)
+    // The auth response already carries the plan, and the badge is the only thing
+    // that needs it to render. Seeding it here shows the right badge immediately
+    // instead of leaving the panel absent until /api/usage/me answers -- the same
+    // fact the server already sent, one round trip earlier. The figures stay absent
+    // until that call returns; UsagePanel renders the badge without them rather than
+    // showing a placeholder 0/0 that would be wrong for a Premium account.
+    setUsage({ plan: data.plan })
     setEmail(data.email)
     setAuthMode(null)
   }
