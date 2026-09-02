@@ -14,6 +14,7 @@ export default function UsagePanel({ usage, aiKeyStatus }) {
   // A configured key always wins server-side (see AiAnalysisService), regardless of
   // plan, so it takes priority over the usual plan-based messaging here too.
   const hasOwnKey = Boolean(aiKeyStatus?.label)
+  const hasFigures = typeof usage.scansAllowance === 'number'
 
   return (
     <div className="usage-panel">
@@ -21,12 +22,18 @@ export default function UsagePanel({ usage, aiKeyStatus }) {
       {hasOwnKey ? (
         <span className="usage-figures">Using your own {aiKeyStatus.label} key for AI analysis</span>
       ) : isPremium ? (
-        <span className="usage-figures">
-          {usage.scansUsed} / {usage.scansAllowance} AI scans used
-          {usage.periodEnd && (
-            <> · resets {new Date(usage.periodEnd).toLocaleDateString()}</>
-          )}
-        </span>
+        // Guarded because the badge can render before the figures exist: signing in
+        // seeds the plan from the auth response, and /api/usage/me fills the rest in
+        // a moment later. Showing "0 / 0 AI scans used" in that gap would be worse
+        // than showing nothing, since it reads as an exhausted allowance.
+        hasFigures && (
+          <span className="usage-figures">
+            {usage.scansUsed} / {usage.scansAllowance} AI scans used
+            {usage.periodEnd && (
+              <> · resets {new Date(usage.periodEnd).toLocaleDateString()}</>
+            )}
+          </span>
+        )
       ) : (
         <span className="usage-figures">Upgrade to PREMIUM for AI-powered analysis</span>
       )}
