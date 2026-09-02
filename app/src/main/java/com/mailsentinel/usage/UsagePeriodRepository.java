@@ -6,11 +6,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface UsagePeriodRepository extends JpaRepository<UsagePeriod, Long> {
 
     Optional<UsagePeriod> findFirstByUserIdOrderByPeriodStartDesc(Long userId);
+
+    /** Every period a user has ever had, oldest first -- the billing history a data export owes them. */
+    List<UsagePeriod> findAllByUserIdOrderByPeriodStartAsc(Long userId);
 
     /**
      * The concurrency enforcement point: reservation and the limit check are the same
