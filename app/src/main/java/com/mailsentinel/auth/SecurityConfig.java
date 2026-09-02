@@ -67,12 +67,52 @@ public class SecurityConfig {
         return new RateLimitFilter(rateLimitService, rateLimitProperties, objectMapper);
     }
 
+    /**
+     * The Content-Security-Policy this app serves itself under.
+     *
+     * Spring Security's other header defaults were already present and correct
+     * (X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Cache-Control:
+     * no-store) but there was no CSP at all. That matters more here than it would
+     * elsewhere: the session token lives in localStorage, readable by any injected
+     * script, and tokens last 30 days -- so a single XSS anywhere yields a month-long
+     * session. A script-src without 'unsafe-inline' is the cheapest thing standing
+     * between those two facts.
+     *
+     * Each source is here because something real needs it:
+     *   script-src   accounts.google.com -- the Google Identity Services client, which
+     *                GoogleSignInButton injects; frame-src/connect-src the same, for
+     *                the iframe and calls it makes.
+     *   style-src    fonts.googleapis.com for the webfont stylesheet, font-src
+     *                fonts.gstatic.com for the faces it pulls.
+     *   'unsafe-inline' in style-src only -- ScoreDisplay sets the meter's fill and
+     *                threshold marks as style attributes, which CSP treats as inline
+     *                styles. It weakens style protection, not script execution, so the
+     *                XSS-to-token path this exists to close stays closed.
+     *
+     * Overridable because a deployment serving the frontend from a different origin
+     * than the API (VITE_API_BASE) needs connect-src widened to match.
+     */
+    private static final String DEFAULT_CSP = String.join("; ",
+            "default-src 'self'",
+            "script-src 'self' https://accounts.google.com",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "font-src 'self' https://fonts.gstatic.com",
+            "img-src 'self' data:",
+            "connect-src 'self' https://accounts.google.com",
+            "frame-src https://accounts.google.com",
+            "frame-ancestors 'none'",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'");
+
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             BearerTokenAuthFilter bearerTokenAuthFilter,
             RateLimitFilter rateLimitFilter,
-            ObjectMapper objectMapper) throws Exception {
+            ObjectMapper objectMapper,
+            @Value("${mailsentinel.security.content-security-policy:}") String configuredCsp) throws Exception {
+        String csp = configuredCsp == null || configuredCsp.isBlank() ? DEFAULT_CSP : configuredCsp;
         AuthenticationEntryPoint jsonUnauthorizedEntryPoint = (request, response, authException) -> {
             response.setStatus(401);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
@@ -88,6 +128,7 @@ public class SecurityConfig {
             // AccessDeniedException (403) -- keeping "no credentials" (401) and "wrong
             // role" (403) as two distinct, semantically correct outcomes.
             .anonymous(AbstractHttpConfigurer::disable)
+            .headers(headers -> headers.contentSecurityPolicy(policy -> policy.policyDirectives(csp)))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(handling -> handling.authenticationEntryPoint(jsonUnauthorizedEntryPoint))
             .authorizeHttpRequests(auth -> auth
