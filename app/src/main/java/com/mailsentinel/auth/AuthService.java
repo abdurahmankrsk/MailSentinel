@@ -139,6 +139,59 @@ public class AuthService {
         return new RegisteredUser(user, issueToken(user.getId()));
     }
 
+    /**
+     * Changes a signed-in user's password, then revokes every token they hold and
+     * issues one fresh token for the caller.
+     *
+     * The revocation is the point, not a side effect. Changing a password is how
+     * someone reacts to a session they believe is stolen, and tokens here live 30 days
+     * -- leaving the others valid would mean the change accomplished nothing against
+     * the case that prompted it. The caller gets a new token back so the device that
+     * made the change isn't signed out by its own action.
+     *
+     * The current password is required. Without it, anyone holding a token -- which is
+     * exactly the attacker this defends against -- could lock the real owner out.
+     */
+    @Transactional
+    public String changePassword(Long userId, String currentPassword, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(InvalidCredentialsException::new);
+        if (currentPassword == null || !passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new InvalidCredentialsException();
+        }
+        user.changePasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        revokeAllTokens(userId);
+        return issueToken(userId);
+    }
+
+    /**
+     * Erases the account and everything hanging off it.
+     *
+     * The child rows go with it because every table that references users declares
+     * {@code ON DELETE CASCADE} (see the V2-V6 migrations) -- subscriptions,
+     * usage_periods, idempotency_records, user_ai_keys and auth_tokens are all removed
+     * by the database as part of this one statement. AccountControllerTest asserts
+     * that rather than trusting it, since a future table added without the cascade
+     * would otherwise fail this silently and leave orphaned personal data behind.
+     *
+     * A real delete, not a soft one with a flag: this exists to answer a GDPR erasure
+     * request, and "still in the table but marked gone" is not erasure. It also frees
+     * the email address, so the same person can sign up again later.
+     */
+    @Transactional
+    public void deleteAccount(Long userId) {
+        userRepository.findById(userId).ifPresent(userRepository::delete);
+    }
+
+    private void revokeAllTokens(Long userId) {
+        authTokenRepository.findAllByUserId(userId).forEach(token -> {
+            token.revoke();
+            authTokenRepository.save(token);
+        });
+    }
+
     @Transactional
     public void logout(String rawToken) {
         String tokenHash = tokenGenerator.hash(rawToken);
