@@ -98,6 +98,10 @@ public class SecurityConfig {
                 // public sub-path has to come first or it would inherit the
                 // authenticated() requirement meant for the rest of the account API.
                 .requestMatchers("/api/account/ai-key/config").permitAll()
+                // The rest of /api/auth is public by necessity (you cannot hold a token
+                // before you log in); this one is the exception, since changing a
+                // password is something only the account's owner may do.
+                .requestMatchers("/api/auth/change-password").authenticated()
                 .requestMatchers("/api/account/**").authenticated()
                 .anyRequest().permitAll()
             )
