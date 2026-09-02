@@ -36,6 +36,22 @@ public class User {
         this.createdAt = Instant.now();
     }
 
+    /**
+     * The one way the stored hash changes after registration.
+     *
+     * Takes an already-encoded hash rather than a raw password on purpose: an entity
+     * that accepted a plaintext password would need the PasswordEncoder to reach in
+     * here, and the first caller that forgot to encode would persist a readable
+     * password with nothing to stop it. Encoding stays in AuthService, where the
+     * encoder already lives.
+     */
+    public void changePasswordHash(String newPasswordHash) {
+        if (newPasswordHash == null || newPasswordHash.isBlank()) {
+            throw new IllegalArgumentException("A password hash is required");
+        }
+        this.passwordHash = newPasswordHash;
+    }
+
     public Long getId() {
         return id;
     }
