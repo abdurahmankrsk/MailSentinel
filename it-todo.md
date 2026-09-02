@@ -11,13 +11,13 @@ bring-your-own-key paths were reachable. UI driven in a real browser against the
 served frontend. `./mvnw test` passes in full — every finding below is behaviour the
 existing suite does not cover.
 
-**Legend.** 🔴 Blocker · 🟠 High · 🟡 Medium · ⚪ Low
+**Legend.** 🔴 Blocker · 🟠 High · 🟡 Medium · ⚪ Low · ✅ fixed · ◐ partly fixed
 
 ---
 
 ## Summary
 
-Status: **#1, #2, #4, #6, #8, #9, #10, #11, #14 and #17 are fixed** (see "Resolved" below). The rest stand as written.
+Status: **#1, #2, #4, #6, #8, #9, #10, #11, #14, #17, #18 and #19 are fixed**, and #7 is half done (see "Resolved" below). The rest stand as written.
 
 | # | Severity | Area | Finding |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Status: **#1, #2, #4, #6, #8, #9, #10, #11, #14 and #17 are fixed** (see "Resolv
 | 4 | ✅ 🟠 | Auth | ~~No server-side email-format validation — defeats the disposable-address gate~~ — fixed |
 | 5 | 🟠 | Detection | "Brand + word" domains (`paypal-secure.com`) score **0/100 clean** |
 | 6 | ✅ 🟠 | Abuse | ~~No rate limiting anywhere — credential brute force, signup flood, scan abuse~~ — fixed |
-| 7 | 🟠 | Auth | No password reset, email verification, password change, or account deletion |
+| 7 | ◐ 🟠 | Auth | ~~password change, account deletion, data export~~ done — **password reset and email verification still missing** (need email delivery) |
 | 8 | ✅ 🟡 | Auth | ~~Over-long email returns **HTTP 500** instead of 400~~ — fixed |
 | 9 | ✅ 🟡 | Auth | ~~BCrypt silently truncates passwords at 72 bytes~~ — fixed |
 | 10 | ✅ 🟡 | UI | ~~Auth dialog title desyncs from the selected tab~~ — fixed |
@@ -38,8 +38,8 @@ Status: **#1, #2, #4, #6, #8, #9, #10, #11, #14 and #17 are fixed** (see "Resolv
 | 15 | 🟡 | Perf | DNS lookups uncached; first scan of a domain takes ~9 s, with no client timeout |
 | 16 | ⚪ | Legal | No Terms, Privacy Policy, or contact anywhere, despite EUR pricing |
 | 17 | ✅ ⚪ | Privacy | ~~Scan results stay on screen after logout~~ — fixed |
-| 18 | ⚪ | Security | No CSP; session token in `localStorage` |
-| 19 | ⚪ | Frontend | `plan` returned by the auth API is discarded |
+| 18 | ◐ ⚪ | Security | ~~No CSP~~ — fixed; the token is still in `localStorage` |
+| 19 | ✅ ⚪ | Frontend | ~~`plan` returned by the auth API is discarded~~ — fixed |
 
 ---
 
@@ -619,7 +619,7 @@ Worth recording, so the report isn't read as uniformly negative:
 
 ## Resolved
 
-Fixed after the initial report. Full suite green at **215 tests**, up from 165 — every
+Fixed after the initial report. Full suite green at **230 tests**, up from 165 — every
 fix landed with a regression test that fails against the old behaviour.
 
 **#1 — regional brand false-positive cascade.** `BrandConstants` now models a brand as a
@@ -748,6 +748,63 @@ trade, and is why the window is short and the response is a 429 with `Retry-Afte
 rather than an account lock a human has to undo. Warning the owner by mail is the usual
 next step and waits on the email delivery #7 needs.
 
+**#7 — partly.** The half that needs no email delivery is done; the half that does is
+untouched, and the finding stays open for it.
+
+*Shipped.* `POST /api/auth/change-password` (authenticated — the one path under
+`/api/auth` that is, since the rest must be reachable before you hold a token) requires
+the current password, then **revokes every token the user holds** and returns a fresh
+one. The revocation is the point rather than a side effect: changing a password is how
+someone reacts to a session they believe is stolen, and tokens live 30 days, so leaving
+the others valid would mean the change accomplished nothing against the case that
+prompted it. The caller gets a replacement so the device that made the change isn't
+signed out by its own action. Requiring the current password is what stops a stolen
+token alone from locking the real owner out.
+
+`DELETE /api/account` is a real delete, not a flag — "still in the table but marked
+gone" is not erasure, and a real delete frees the address so the same person can sign up
+again. The child rows go with it through the `ON DELETE CASCADE` already declared in
+V2–V6; the test writes a row into every one of `auth_tokens`, `subscriptions`,
+`usage_periods`, `user_ai_keys` and `idempotency_records` and asserts each is gone,
+because that behaviour comes from the schema rather than from application code and a
+future table added without the cascade would leave orphaned personal data behind with
+nothing else to notice.
+
+`GET /api/account/export` answers a portability request. What it omits is as deliberate
+as what it carries: no password hash, no token hashes, no BYOK ciphertext — an export is
+a document a user may forward to anyone. The AI key appears only as the label and last
+four the UI already shows. Scan history is a sentence saying none is kept, which is more
+useful than an empty array that reads as data lost.
+
+*Still missing.* **Password reset and email verification.** Both need outbound email,
+which this app has no capability for at all — see the order of work: it is the single
+dependency that unblocks the most.
+
+**#18 — CSP added; the localStorage token is not addressed.** The other Spring Security
+header defaults were already present and correct, but there was no
+`Content-Security-Policy` at all. Every allowed source has a real caller —
+`accounts.google.com` for the Identity Services client and the iframe and calls it
+makes, `fonts.googleapis.com`/`fonts.gstatic.com` for the webfont. `'unsafe-inline'`
+appears in `style-src` only, because `ScoreDisplay` sets the meter's fill and threshold
+marks as style attributes; that weakens style protection, not script execution, so the
+XSS-to-token path this exists to close stays closed. Verified in a browser against the
+packaged jar: the app mounts, the webfont loads, the meter's inline styles apply, and
+the console is clean.
+
+The second half of the finding stands. The session token is **still in `localStorage`**,
+readable by any injected script, still with a 30-day life. Moving it to an
+`HttpOnly; Secure; SameSite=Lax` cookie removes it from JavaScript's reach entirely, but
+that requires CSRF protection, currently disabled — reasonable while auth is a bearer
+header, and the two have to change together. The CSP narrows the odds of an injection
+succeeding; it does not change what one would yield.
+
+**#19 — the discarded `plan`.** `handleAuthenticated` now seeds it from the auth
+response, so the badge renders immediately instead of leaving the panel absent until
+`/api/usage/me` answers. Only the plan is seeded — the figures stay absent until that
+call returns, and `UsagePanel` guards on them rather than showing a placeholder
+`0 / 0 AI scans used`, which would read as an exhausted allowance rather than as data
+not yet loaded.
+
 ---
 
 ## Suggested order of work
@@ -755,11 +812,16 @@ next step and waits on the email delivery #7 needs.
 1. ~~**#1** — the false-positive cascade~~ ✅ done.
 2. ~~**#2** — SSRF~~ ✅ done, egress guard shipped.
 3. ~~**#4 + #8**~~ ✅ done, along with #9.
-4. ~~**#6**~~ ✅ done. **#7** — account recovery — is what remains of this pair, and is
-   **now the top item**: a user who forgets their password is still permanently locked
-   out, with no recovery path at all. It needs email delivery, which is the same
-   dependency verification and the "someone is trying to sign in" warning both want.
+4. ~~**#6**~~ ✅ done. **#7** is half done: password change, account deletion and data
+   export all shipped. What remains is **password reset and email verification**, and
+   both are blocked on the same missing dependency — **outbound email**. That is now
+   the single highest-value thing to build, because it unblocks three separate items
+   at once: recovery for a user who forgets their password (today: locked out
+   permanently, no path at all), proving an address belongs to its registrant, and the
+   "someone is trying to sign in to your account" warning that would take the sting out
+   of #6's per-email lockout.
 5. **#3** — decide: build checkout, or stop advertising prices. Don't leave it as is.
+   **Now the top item that isn't waiting on a dependency.**
 6. **#5 + #13** — the detection-coverage work, best done together.
-7. The remaining medium and low items as cleanup — ~~#10, #11, #14, #17~~ ✅ done;
-   #12, #15, #16, #18, #19 stand.
+7. The remaining medium and low items as cleanup — ~~#10, #11, #14, #17, #19~~ ✅ done,
+   ~~#18's CSP~~ ✅ done; #12, #15, #16 and #18's localStorage token stand.
