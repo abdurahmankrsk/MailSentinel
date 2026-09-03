@@ -70,6 +70,12 @@ public final class ScoringConstants {
         // thing a human reads names one destination while the real one is elsewhere.
         // Unlike a display name, a hostname has no legitimate reason to do this.
         Map.entry("brand_subdomain", 62),
+        // Brand name inside the registrable label itself (paypal-secure.com). "Strong"
+        // rather than solo-red on purpose: legitimate affiliates and campaign sites do
+        // occasionally register brand-adjacent domains, so this should stack with a
+        // second signal rather than convict alone. It is the technique that closes the
+        // gap the four near-exact ones structurally could not reach.
+        Map.entry("brand_in_domain", 45),
         // Display name naming a brand the sending domain doesn't back up. Deliberately
         // "strong" rather than "solo-red": a display name can legitimately mention a
         // brand it isn't (a partner newsletter, a training provider), so this lands at
