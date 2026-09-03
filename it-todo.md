@@ -17,7 +17,7 @@ existing suite does not cover.
 
 ## Summary
 
-Status: **#1, #2, #4, #6, #8, #9, #10, #11, #14, #17, #18 and #19 are fixed**, and #7 is half done (see "Resolved" below). The rest stand as written.
+Status: **#1, #2, #4, #5, #6, #8, #9, #10, #11, #13, #14, #17, #18 and #19 are fixed**, and #7 is half done (see "Resolved" below). The rest stand as written.
 
 | # | Severity | Area | Finding |
 |---|---|---|---|
@@ -25,7 +25,7 @@ Status: **#1, #2, #4, #6, #8, #9, #10, #11, #14, #17, #18 and #19 are fixed**, a
 | 2 | ✅ 🔴 | Security | ~~**SSRF** — user-supplied AI base URL is fetched server-side, works as an internal port scanner~~ — fixed |
 | 3 | 🔴 | Payment | **No payment system exists**; Premium is unobtainable and the advertised Enterprise tier isn't implemented |
 | 4 | ✅ 🟠 | Auth | ~~No server-side email-format validation — defeats the disposable-address gate~~ — fixed |
-| 5 | 🟠 | Detection | "Brand + word" domains (`paypal-secure.com`) score **0/100 clean** |
+| 5 | ✅ 🟠 | Detection | ~~"Brand + word" domains (`paypal-secure.com`) score **0/100 clean**~~ — fixed |
 | 6 | ✅ 🟠 | Abuse | ~~No rate limiting anywhere — credential brute force, signup flood, scan abuse~~ — fixed |
 | 7 | ◐ 🟠 | Auth | ~~password change, account deletion, data export~~ done — **password reset and email verification still missing** (need email delivery) |
 | 8 | ✅ 🟡 | Auth | ~~Over-long email returns **HTTP 500** instead of 400~~ — fixed |
@@ -33,7 +33,7 @@ Status: **#1, #2, #4, #6, #8, #9, #10, #11, #14, #17, #18 and #19 are fixed**, a
 | 10 | ✅ 🟡 | UI | ~~Auth dialog title desyncs from the selected tab~~ — fixed |
 | 11 | ✅ 🟡 | Detection | ~~Unparseable email scores 20 and leaks the internal `unknown` placeholder~~ — fixed |
 | 12 | 🟡 | UI | Plans/"Upgrade to PREMIUM" are dead ends; signup CTA shown to signed-in users |
-| 13 | 🟡 | Detection | 33-brand watch list — anything outside it is silently reported as clean |
+| 13 | ✅ 🟡 | Detection | ~~33-brand watch list — anything outside it is silently reported as clean~~ — fixed |
 | 14 | ✅ 🟡 | Perf | ~~Email link extraction is unbounded (URL scans cap at 50, email scans don't)~~ — fixed |
 | 15 | 🟡 | Perf | DNS lookups uncached; first scan of a domain takes ~9 s, with no client timeout |
 | 16 | ⚪ | Legal | No Terms, Privacy Policy, or contact anywhere, despite EUR pricing |
@@ -619,7 +619,7 @@ Worth recording, so the report isn't read as uniformly negative:
 
 ## Resolved
 
-Fixed after the initial report. Full suite green at **230 tests**, up from 165 — every
+Fixed after the initial report. Full suite green at **244 tests**, up from 165 — every
 fix landed with a regression test that fails against the old behaviour.
 
 **#1 — regional brand false-positive cascade.** `BrandConstants` now models a brand as a
@@ -805,6 +805,74 @@ call returns, and `UsagePanel` guards on them rather than showing a placeholder
 `0 / 0 AI scans used`, which would read as an exhausted allowance rather than as data
 not yet loaded.
 
+**#5 — "brand + word" domains.** A sixth technique, `checkBrandInDomain`, closes the
+hole the other four structurally could not reach: they all match near-exact forms, and
+`paypal-secure.com` is nine edits from `paypal.com`, substitutes nothing, uses no
+homoglyphs, is not a TLD swap and carries no subdomain. It matches whole tokens of the
+registrable label split on hyphens and underscores, plus unhyphenated concatenation for
+brand labels of 8+ characters — reusing the `MIN_COMPACT_LABEL_LENGTH` rule that
+already stops "Pineapple" reading as Apple.
+
+Weighted 45, the **Strong** tier rather than solo-red, exactly as the finding
+recommended: legitimate affiliates and campaign sites do register brand-adjacent
+domains, so this stacks rather than convicting alone.
+
+Two guards keep it from costing more than it earns. A label that is *only* a brand name
+returns null and is left to `checkTldSwap`, so one fact is never scored twice — that
+double-count is the same bug that made a genuine amazon.co.uk email read 100/100. And a
+brand label that is also an ordinary English word (`apple`, `chase`, `ups`, `target`)
+needs a lure word alongside it before it fires.
+
+Measured against the packaged jar — the finding's own table, every row of which scored
+**0** before:
+
+| Input | Was | Now |
+|---|---|---|
+| `paypal-secure.com` | 0 | **45** |
+| `apple-support.com` | 0 | **45** |
+| `chase-verify.com` | 0 | **45** |
+| `dhl-tracking-parcel.com` | 0 | **45** |
+| `apple-orchard.com` | 0 | 0 — the corroboration rule holding |
+| `start-ups.com` | 0 | 0 — likewise |
+| `amazon.co.uk` | 0 | 0 — finding #1 stays fixed |
+
+**#13 — the 33-brand watch list.** Both halves.
+
+*(a) The list.* Moved to `brand-domains.txt` on the classpath, following the
+`disposable-email-domains.txt` pattern already established, so it can be reviewed,
+diffed and refreshed without a code change — and the editing rules now sit in the
+file's own header where an editor will see them. Expanded from 33 brands to **103**,
+adding the European banks the product's own EUR pricing implies (Santander, Barclays,
+Revolut, Monzo, BNP Paribas, Commerzbank, Caixabank and more), EU postal carriers, and
+the consumer services most often impersonated. The finding's typosquat table now scores
+**65** where it scored 0: `santand3r.com`, `barc1ays.com`, `revo1ut.com`,
+`wh4tsapp.com`, `bookinq.com`, `steamcornmunity.com`.
+
+Two rules are written into the file header because both are easy to get wrong. Listing
+a domain asserts it is **safe**, so omission is the cheaper error. And a primary label
+wants 5+ characters that are not an ordinary word, because edit distance compares whole
+domains — `ing.com` would flag `inc.com` and `img.com` as lookalikes of ING, which is
+why ING is deliberately absent despite being a major EU bank.
+
+Several entries exist purely to stop the new technique false-positiving on real
+brand-owned domains whose own names embed a shorter brand label:
+`microsoftonline.com`, `facebookmail.com`, `cloudflare-dns.com`,
+`lloydsbankinggroup.com`, `capitalone360.com`.
+
+*(b) The presentation*, which the finding rightly called the real risk. A score of 0 no
+longer renders as "Low risk — Nothing here crosses the threshold for concern". It now
+reads: *"No signals fired. This doesn't resemble any of the 103 brands MailSentinel
+watches, and its headers and links raised nothing — but that isn't the same as proof
+it's safe."* The count comes from `ScanResponse.brandsWatched` rather than being
+hardcoded in the client, so it cannot drift from the list that actually ran. Only
+exactly 0 is qualified; a non-zero score under 30 has real signals behind it and the
+existing note is right for it.
+
+*Known limitation.* A brand whose own label contains a hyphen would not be matched by
+the token rule, since the candidate's tokens are split on hyphens and could never equal
+it. No brand currently on the list is affected; a future one would need its label
+handled as a phrase.
+
 ---
 
 ## Suggested order of work
@@ -821,7 +889,13 @@ not yet loaded.
    "someone is trying to sign in to your account" warning that would take the sting out
    of #6's per-email lockout.
 5. **#3** — decide: build checkout, or stop advertising prices. Don't leave it as is.
-   **Now the top item that isn't waiting on a dependency.**
-6. **#5 + #13** — the detection-coverage work, best done together.
+   **Now the top item.** It is a product call, not an engineering one: the short-term
+   half (drop the Enterprise card, replace the €3 price with "Coming soon") is an hour
+   of work, but it changes what the business advertises, so it needs a decision rather
+   than a commit. #12 is blocked behind the same decision — there is no point wiring an
+   "Upgrade" button to a checkout that does not exist.
+6. ~~**#5 + #13**~~ ✅ done, together as suggested.
 7. The remaining medium and low items as cleanup — ~~#10, #11, #14, #17, #19~~ ✅ done,
-   ~~#18's CSP~~ ✅ done; #12, #15, #16 and #18's localStorage token stand.
+   ~~#18's CSP~~ ✅ done; **#15** (uncached DNS, 9 s first scan, no client timeout) is
+   the largest of what's left and is pure engineering; #12, #16 and #18's localStorage
+   token stand.
