@@ -151,7 +151,7 @@ export default function App() {
 
       {result && (
         <div className="results">
-          <ScoreDisplay score={result.score} />
+          <ScoreDisplay score={result.score} brandsWatched={result.brandsWatched} />
           <ChecksList checks={result.checks} />
           {result.aiAnalysis?.status === 'AI_ANALYSIS_COMPLETED' && (
             <div className="ai-summary">
