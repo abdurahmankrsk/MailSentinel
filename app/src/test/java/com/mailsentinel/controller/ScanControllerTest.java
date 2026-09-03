@@ -57,7 +57,7 @@ class ScanControllerTest {
 
     @Test
     void acceptsValidUrlScanRequest() throws Exception {
-        ScanResponse deterministic = new ScanResponse(0, List.of(), null);
+        ScanResponse deterministic = new ScanResponse(0, List.of(), null, 70);
         when(scoringService.runScan(anyString(), anyString())).thenReturn(deterministic);
         // This slice tests controller-level validation only, not AI routing (that's
         // AiAnalysisServiceTest's job) -- stub it to pass the deterministic result through
