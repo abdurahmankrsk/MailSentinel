@@ -228,7 +228,7 @@ public class AiAnalysisService {
                 AiAnalysisStatus.AI_ANALYSIS_COMPLETED, aiResult.summary(), null,
                 scansUsed, scansRemaining, scansAllowance, resetDate);
 
-        return new ScanResponse(recomputedScore, merged, meta);
+        return new ScanResponse(recomputedScore, merged, meta, deterministic.brandsWatched());
     }
 
     private List<AiFinding> validateAndClamp(List<AiFinding> rawFindings) {
@@ -254,6 +254,6 @@ public class AiAnalysisService {
     }
 
     private ScanResponse withMeta(ScanResponse deterministic, AiAnalysisMeta meta) {
-        return new ScanResponse(deterministic.score(), deterministic.checks(), meta);
+        return new ScanResponse(deterministic.score(), deterministic.checks(), meta, deterministic.brandsWatched());
     }
 }
