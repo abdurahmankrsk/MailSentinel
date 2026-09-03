@@ -1,7 +1,22 @@
 // 60 is the red threshold the scoring tiers are built around (see README and
 // ScanPipelineTest, which both treat >= 60 as high risk), so it belongs in the red
 // band rather than at the top of the yellow one.
-function bandFor(score) {
+function bandFor(score, brandsWatched) {
+  // A score of exactly 0 is the one verdict worth qualifying. It means no signal
+  // fired at all, and "Low risk — nothing crosses the threshold for concern" reads
+  // as a clean bill of health rather than as the narrower claim it actually is:
+  // nothing on our watch list resembles this. A confident false negative is worse
+  // than an admitted gap for a security tool, so the note says what was checked.
+  if (score === 0) {
+    return {
+      key: 'low',
+      label: 'Low risk',
+      note: brandsWatched
+        ? `No signals fired. This doesn't resemble any of the ${brandsWatched} brands MailSentinel watches, `
+          + `and its headers and links raised nothing — but that isn't the same as proof it's safe.`
+        : 'No signals fired. That isn\'t the same as proof this is safe.',
+    }
+  }
   if (score < 30) {
     return {
       key: 'low',
@@ -23,8 +38,8 @@ function bandFor(score) {
   }
 }
 
-export default function ScoreDisplay({ score }) {
-  const band = bandFor(score)
+export default function ScoreDisplay({ score, brandsWatched }) {
+  const band = bandFor(score, brandsWatched)
 
   return (
     <section className="verdict" data-band={band.key}>
