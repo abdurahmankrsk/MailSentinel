@@ -1,10 +1,17 @@
 package com.mailsentinel.config;
 
+import org.springframework.core.io.ClassPathResource;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.List;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -13,6 +20,12 @@ import java.util.stream.Collectors;
 /**
  * High-value brand domains commonly impersonated in phishing.
  * Kept separate from the detection logic so this list is trivial to extend.
+ *
+ * <p>The list itself lives in {@code brand-domains.txt} on the classpath rather than in
+ * this file, following the pattern {@code disposable-email-domains.txt} already
+ * established: a resource can be reviewed, diffed and refreshed by someone who does not
+ * read Java, and the file's own header carries the editing rules where an editor will
+ * actually see them.
  *
  * <p>A brand is a <em>set</em> of domains, not a single string. Big brands legitimately
  * operate country-specific domains -- amazon.co.uk, google.de, paypal.fr -- and treating
@@ -28,86 +41,83 @@ import java.util.stream.Collectors;
  *
  * <p>Membership here is an assertion that a domain is <em>safe</em>, so this list errs
  * towards omission: a missing regional domain costs a false positive, while a wrongly
- * included one silently allowlists a phishing domain. The regional coverage below is
- * deliberately partial -- extend it as false positives are reported, not speculatively.
+ * included one silently allowlists a phishing domain. Regional coverage is deliberately
+ * partial -- extend it as false positives are reported, not speculatively.
  */
 public final class BrandConstants {
     private BrandConstants() {}
+
+    private static final String BRANDS_RESOURCE = "brand-domains.txt";
 
     /**
      * Primary domain -> every domain the brand legitimately operates on, primary included.
      *
      * <p>A LinkedHashMap, not Map.of: iteration order decides which brand a message names
-     * when several match, so it has to be stable across JVM runs.
+     * when several match, so it has to be stable across JVM runs, and it has to follow
+     * the order of the resource file rather than a hash.
      */
-    private static final Map<String, Set<String>> OWNED_DOMAINS = buildOwnedDomains();
+    private static final Map<String, Set<String>> OWNED_DOMAINS = loadOwnedDomains();
 
-    private static Map<String, Set<String>> buildOwnedDomains() {
+    /**
+     * Brand labels that are also ordinary English words, or common substrings of them.
+     *
+     * <p>These need corroboration before {@code checkBrandInDomain} will fire on them.
+     * "apple" is a fruit, "chase" is a verb, "ups" sits inside "start-ups" and "pop-ups",
+     * "target" and "wise" are everyday words -- flagging every domain containing one
+     * would produce more false positives than findings, and a false positive from a
+     * security tool is expensive because it teaches people to ignore it.
+     *
+     * <p>Note this holds back only the brand-in-domain technique. Edit distance,
+     * character substitution, homoglyph and TLD swap all still apply to these brands
+     * unchanged, because those match near-exact forms where the ambiguity does not arise.
+     */
+    public static final Set<String> COMMON_WORD_BRAND_LABELS = Set.of(
+            "apple", "chase", "ups", "target", "discord", "outlook", "citi", "amex",
+            "fb", "irs", "poste", "argos", "halifax", "nationwide");
+
+    /**
+     * Words a phishing domain adds around a brand name to make it read like an official
+     * one. Their presence is what lets the brand-in-domain technique fire on a
+     * common-word brand: "apple-orchard.com" is a shop, "apple-support.com" is not.
+     */
+    public static final Set<String> LURE_WORDS = Set.of(
+            "secure", "security", "login", "signin", "logon", "verify", "verification",
+            "verified", "account", "accounts", "billing", "payment", "payments", "pay",
+            "support", "update", "updates", "confirm", "confirmation", "alert", "alerts",
+            "helpdesk", "recovery", "recover", "unlock", "suspended", "refund", "invoice",
+            "tracking", "track", "parcel", "delivery", "notice", "notification", "portal",
+            "auth", "authenticate", "myaccount", "customer", "validate", "restore",
+            "reactivate", "reset", "access");
+
+    private static Map<String, Set<String>> loadOwnedDomains() {
         Map<String, Set<String>> owned = new LinkedHashMap<>();
-
-        // Payments / fintech
-        put(owned, "paypal.com", "paypal.co.uk", "paypal.de", "paypal.fr", "paypal.it",
-                "paypal.es", "paypal.nl", "paypal.ca", "paypal.com.au", "paypal.me");
-        put(owned, "stripe.com");
-        put(owned, "coinbase.com");
-        put(owned, "binance.com", "binance.us");
-        put(owned, "venmo.com");
-        // Banks
-        put(owned, "chase.com", "chase.co.uk");
-        put(owned, "bankofamerica.com");
-        put(owned, "wellsfargo.com");
-        put(owned, "citibank.com", "citi.com");
-        put(owned, "capitalone.com", "capitalone.co.uk");
-        put(owned, "usbank.com");
-        put(owned, "hsbc.com", "hsbc.co.uk", "hsbc.ca", "hsbc.fr", "hsbc.com.au", "hsbc.com.hk");
-        put(owned, "americanexpress.com", "americanexpress.co.uk", "amex.com");
-        // Big tech / accounts
-        put(owned, "google.com", "google.co.uk", "google.de", "google.fr", "google.it",
-                "google.es", "google.nl", "google.be", "google.pl", "google.se", "google.dk",
-                "google.no", "google.fi", "google.ie", "google.pt", "google.at", "google.ch",
-                "google.cz", "google.ro", "google.hu", "google.gr", "google.ca",
-                "google.com.au", "google.co.jp", "google.co.in", "google.com.br",
-                "google.com.mx");
-        put(owned, "microsoft.com", "microsoft.co.uk", "microsoft.de", "microsoft.fr");
-        put(owned, "apple.com", "apple.co.uk", "apple.de", "apple.fr", "apple.it",
-                "apple.es", "apple.ca", "apple.com.au", "apple.co.jp");
-        put(owned, "amazon.com", "amazon.co.uk", "amazon.de", "amazon.fr", "amazon.it",
-                "amazon.es", "amazon.nl", "amazon.se", "amazon.pl", "amazon.be", "amazon.ie",
-                "amazon.ca", "amazon.co.jp", "amazon.com.au", "amazon.com.br",
-                "amazon.com.mx", "amazon.com.tr", "amazon.in", "amazon.ae", "amazon.sa",
-                "amazon.sg", "amazon.eg");
-        put(owned, "facebook.com", "fb.com");
-        put(owned, "instagram.com");
-        put(owned, "linkedin.com");
-        put(owned, "yahoo.com", "yahoo.co.uk", "yahoo.co.jp", "yahoo.de", "yahoo.fr");
-        put(owned, "outlook.com");
-        put(owned, "netflix.com");
-        put(owned, "adobe.com");
-        put(owned, "dropbox.com");
-        put(owned, "github.com");
-        // Shipping / delivery
-        put(owned, "usps.com");
-        put(owned, "fedex.com");
-        put(owned, "ups.com");
-        put(owned, "dhl.com", "dhl.de", "dhl.co.uk");
-        // Other frequent phishing targets
-        put(owned, "docusign.com");
-        put(owned, "ebay.com", "ebay.co.uk", "ebay.de", "ebay.fr", "ebay.it", "ebay.es",
-                "ebay.nl", "ebay.be", "ebay.at", "ebay.ch", "ebay.ie", "ebay.pl",
-                "ebay.ca", "ebay.com.au");
-        put(owned, "irs.gov");
-
+        ClassPathResource resource = new ClassPathResource(BRANDS_RESOURCE);
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String trimmed = line.trim();
+                if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+                    continue;
+                }
+                String[] domains = trimmed.toLowerCase(Locale.ROOT).split("\\s+");
+                Set<String> group = new LinkedHashSet<>();
+                Collections.addAll(group, domains);
+                owned.put(domains[0], Set.copyOf(group));
+            }
+        } catch (IOException e) {
+            // Fail loudly at startup rather than degrade to an empty watch list. A
+            // detector that silently watches no brands reports every phishing domain as
+            // clean, which is the worst failure this codebase can have.
+            throw new UncheckedIOException("Could not load " + BRANDS_RESOURCE, e);
+        }
+        if (owned.isEmpty()) {
+            throw new IllegalStateException(BRANDS_RESOURCE + " contained no brands");
+        }
         // Collections.unmodifiableMap over the LinkedHashMap, not Map.copyOf: the latter
         // returns a map with unspecified iteration order, which would randomise
         // BRAND_DOMAINS between JVM runs and with it the brand named in each finding.
         return Collections.unmodifiableMap(owned);
-    }
-
-    private static void put(Map<String, Set<String>> target, String primary, String... regional) {
-        Set<String> domains = new LinkedHashSet<>();
-        domains.add(primary);
-        domains.addAll(List.of(regional));
-        target.put(primary, Set.copyOf(domains));
     }
 
     /**
@@ -115,7 +125,7 @@ public final class BrandConstants {
      *
      * <p>These are the edit-distance comparison targets and the domains named in
      * findings. Regional variants are deliberately absent: comparing a typosquat
-     * against all ~120 owned domains would report whichever happened to be closest
+     * against every owned domain would report whichever happened to be closest
      * rather than the brand a reader would recognise.
      */
     public static final List<String> BRAND_DOMAINS = List.copyOf(OWNED_DOMAINS.keySet());
@@ -128,6 +138,16 @@ public final class BrandConstants {
     public static final Set<String> BRAND_SET = OWNED_DOMAINS.values().stream()
             .flatMap(Collection::stream)
             .collect(Collectors.toUnmodifiableSet());
+
+    /** How many brands are watched. Surfaced to the user so a clean verdict can state its own scope. */
+    public static int brandCount() {
+        return BRAND_DOMAINS.size();
+    }
+
+    /** The first label of a brand's primary domain -- "paypal" for paypal.com. */
+    public static String labelOf(String primaryDomain) {
+        return primaryDomain.split("\\.", 2)[0];
+    }
 
     /** Every domain {@code primaryDomain} legitimately sends from, or empty if unwatched. */
     public static Set<String> ownedDomainsOf(String primaryDomain) {
