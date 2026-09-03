@@ -1,0 +1,152 @@
+# MailSentinel watched brands.
+#
+# One brand per line. The FIRST domain is the brand's primary domain; every domain
+# after it on the same line is another domain that brand legitimately sends from.
+# Blank lines and lines starting with # are ignored. Order is significant and stable:
+# when several brands match, the first one listed is the one named in the finding.
+#
+# The primary domain is what user-facing messages name ("the real domain is
+# amazon.com") and what edit-distance compares against. Regional variants exist so a
+# genuine amazon.co.uk email is recognised as Amazon rather than as a typosquat of it.
+#
+# ---------------------------------------------------------------------------------
+# TWO RULES FOR EDITING THIS FILE
+#
+# 1. Listing a domain asserts it is SAFE. A missing regional domain costs a false
+#    positive; a wrongly included one silently allowlists a phishing domain. When in
+#    doubt, leave it out and add it when a false positive is actually reported.
+#
+# 2. Prefer primary labels of 5+ characters that are not ordinary English words.
+#    Edit-distance matching compares whole domains, so a short primary generates
+#    false positives against unrelated sites: "ing.com" would flag inc.com and
+#    img.com as lookalikes of ING. The three short entries below (ups, irs, fb)
+#    predate this rule and are kept because they are heavily phished; do not add
+#    more without a specific reason.
+#
+# Brands whose label is an ordinary English word are additionally listed in
+# BrandConstants.COMMON_WORD_BRAND_LABELS, which requires corroboration before the
+# brand-in-domain technique will fire on them. See that constant for why.
+# ---------------------------------------------------------------------------------
+
+# --- Payments / fintech ---
+paypal.com paypal.co.uk paypal.de paypal.fr paypal.it paypal.es paypal.nl paypal.ca paypal.com.au paypal.me
+stripe.com
+coinbase.com
+binance.com binance.us
+venmo.com
+klarna.com klarna.de klarna.co.uk klarna.se
+revolut.com
+wetransfer.com
+
+# --- Banks: US ---
+chase.com chase.co.uk
+bankofamerica.com
+wellsfargo.com
+citibank.com citi.com
+capitalone.com capitalone.co.uk capitalone360.com
+usbank.com
+americanexpress.com americanexpress.co.uk amex.com
+
+# --- Banks: UK / EU ---
+# The product is priced in EUR, so the European institutions most often impersonated
+# belong here just as much as the US ones the list started with.
+hsbc.com hsbc.co.uk hsbc.ca hsbc.fr hsbc.com.au hsbc.com.hk
+barclays.co.uk barclays.com
+santander.com santanderbank.com santander.co.uk santander.es santander.de santander.pl
+lloydsbank.com lloydsbankinggroup.com
+natwest.com
+halifax.co.uk
+nationwide.co.uk
+monzo.com
+starlingbank.com
+rabobank.nl
+abnamro.nl
+bnpparibas.com
+societegenerale.com
+commerzbank.de
+unicredit.it
+intesasanpaolo.com
+caixabank.es
+bbva.com bbva.es
+nordea.com
+
+# --- Big tech / accounts ---
+google.com google.co.uk google.de google.fr google.it google.es google.nl google.be google.pl google.se google.dk google.no google.fi google.ie google.pt google.at google.ch google.cz google.ro google.hu google.gr google.ca google.com.au google.co.jp google.co.in google.com.br google.com.mx
+microsoft.com microsoft.co.uk microsoft.de microsoft.fr microsoftonline.com office.com office365.com live.com msn.com onedrive.com sharepoint.com
+apple.com icloud.com apple.co.uk apple.de apple.fr apple.it apple.es apple.ca apple.com.au apple.co.jp
+amazon.com amazon.co.uk amazon.de amazon.fr amazon.it amazon.es amazon.nl amazon.se amazon.pl amazon.be amazon.ie amazon.ca amazon.co.jp amazon.com.au amazon.com.br amazon.com.mx amazon.com.tr amazon.in amazon.ae amazon.sa amazon.sg amazon.eg
+facebook.com fb.com facebookmail.com
+instagram.com
+whatsapp.com whatsapp.net
+linkedin.com
+tiktok.com
+telegram.org
+discord.com
+snapchat.com
+yahoo.com yahoo.co.uk yahoo.co.jp yahoo.de yahoo.fr
+outlook.com
+netflix.com
+spotify.com
+disneyplus.com
+adobe.com
+dropbox.com
+github.com
+gitlab.com
+atlassian.com atlassian.net
+cloudflare.com cloudflare-dns.com
+godaddy.com
+namecheap.com
+wordpress.com wordpress.org
+shopify.com
+mailchimp.com
+salesforce.com
+hubspot.com
+oracle.com
+zoom.us
+slack.com
+
+# --- Gaming ---
+steampowered.com steamcommunity.com
+epicgames.com
+playstation.com playstation.net
+nintendo.com nintendo.co.jp nintendo.co.uk
+roblox.com
+
+# --- Shipping / delivery ---
+usps.com
+fedex.com
+ups.com
+dhl.com dhl.de dhl.co.uk
+royalmail.com
+evri.co.uk
+dpd.com dpd.co.uk dpd.de
+postnl.nl
+laposte.fr
+correos.es
+poste.it
+deutschepost.de
+
+# --- Marketplaces / retail ---
+ebay.com ebay.co.uk ebay.de ebay.fr ebay.it ebay.es ebay.nl ebay.be ebay.at ebay.ch ebay.ie ebay.pl ebay.ca ebay.com.au
+aliexpress.com
+alibaba.com
+booking.com
+airbnb.com
+zalando.de zalando.co.uk zalando.fr zalando.it zalando.nl
+allegro.pl
+walmart.com
+target.com
+bestbuy.com
+argos.co.uk
+currys.co.uk
+mediamarkt.de
+ikea.com
+
+# --- Tax / government ---
+irs.gov
+hmrc.gov.uk
+
+# --- Other frequent phishing targets ---
+docusign.com
+intuit.com
+turbotax.com
