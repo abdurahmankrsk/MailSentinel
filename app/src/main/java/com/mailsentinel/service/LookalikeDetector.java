@@ -12,15 +12,21 @@ import java.util.regex.Pattern;
 /**
  * Lookalike and typosquat detection against the BrandConstants target list.
  *
- * Four independent techniques:
+ * Six independent domain techniques:
  *   - edit distance:      paypa1.com is 1 edit from paypal.com
  *   - char substitution:  digits/letter-runs standing in for similar letters (0->o, 1->l, rn->m)
  *   - homoglyphs:         non-Latin letters visually identical to Latin (Cyrillic а/е/о/р/с/etc.), Punycode (xn--)
  *   - TLD swap:           exact brand name with wrong top-level domain
  *   - brand subdomain:    brand name parked in a subdomain of an unrelated domain
+ *   - brand in domain:    brand name inside the registrable label (paypal-secure.com)
  *
- * Plus a fifth, domain-independent technique -- display-name impersonation -- which
- * catches the case the four above structurally cannot: an attacker on a domain that
+ * The first four all match near-exact forms, which left a hole the size of the most
+ * common real phishing shape there is: paypal-secure.com is nine edits from
+ * paypal.com, substitutes nothing, and has no subdomain, so it scored zero until
+ * checkBrandInDomain existed.
+ *
+ * Plus a seventh, domain-independent technique -- display-name impersonation -- which
+ * catches the case none of the above structurally can: an attacker on a domain that
  * resembles no brand at all (secure-docs-exchange.com) simply *naming* one in the
  * From header, which is the half a mail client shows the reader by default.
  */
@@ -247,6 +253,81 @@ public class LookalikeDetector {
         return null;
     }
 
+    /**
+     * Is a brand's name sitting inside the registrable label itself?
+     *
+     * <p>This is the single most common real phishing shape, and every other technique
+     * structurally missed it. paypal-secure.com is not within edit distance of
+     * paypal.com (nine characters apart), substitutes no characters, uses no
+     * homoglyphs, is not a TLD swap, and carries no subdomain -- so it scored a clean
+     * <b>0</b>, as did apple-support.com, microsoft-login.com, amazon-billing.com and
+     * chase-verify.com. In an email the display-name check partly compensated, but only
+     * when the attacker obliged by naming the brand: the same domain behind a neutral
+     * display name scored 11, "Low risk".
+     *
+     * <p>Matching is on whole tokens of the registrable label, split on hyphens and
+     * underscores, so "paypal" fires in paypal-secure.com but not in "paypalette.com".
+     * Unhyphenated concatenation is matched too, but only for brand labels of
+     * {@link #MIN_COMPACT_LABEL_LENGTH}+ characters -- the same rule that already stops
+     * "Pineapple" matching "apple" -- so microsoftlogin.com is caught while a short
+     * brand label buried in a longer word is not.
+     *
+     * <p>A brand label that is also an ordinary English word needs corroboration: some
+     * other token has to be a recognised lure word. Without that rule "start-ups.com"
+     * reads as UPS, "paper-chase.com" as Chase and "apple-orchard.com" as Apple. With
+     * it, apple-support.com and chase-verify.com still fire, because "support" and
+     * "verify" are exactly what a phishing domain adds and a greengrocer does not.
+     *
+     * <p>Weighted in the Strong tier rather than solo-red: legitimate affiliates and
+     * campaign sites do occasionally register brand-adjacent domains, so this should
+     * stack with another signal rather than convict on its own.
+     */
+    public LookalikeFinding checkBrandInDomain(String hostname) {
+        if (hostname == null || hostname.isBlank()) {
+            return null;
+        }
+        String domain = UrlUtils.registrableDomain(hostname.trim().toLowerCase(Locale.ROOT));
+        if (domain.isBlank() || BrandConstants.BRAND_SET.contains(domain)) {
+            return null;
+        }
+        String label = domain.split("\\.", 2)[0];
+        Set<String> tokens = new LinkedHashSet<>(Arrays.asList(label.split("[-_]+")));
+        // A label that is nothing but the brand name is a TLD swap, and checkTldSwap
+        // already reports it. Firing here as well would score one fact twice.
+        if (tokens.size() == 1 && BrandConstants.BRAND_SET.stream()
+                .anyMatch(owned -> owned.split("\\.", 2)[0].equals(label))) {
+            return null;
+        }
+        String compact = label.replace("-", "").replace("_", "");
+
+        for (String brand : BrandConstants.BRAND_DOMAINS) {
+            String brandLabel = BrandConstants.labelOf(brand);
+            boolean tokenMatch = tokens.contains(brandLabel);
+            boolean compactMatch = brandLabel.length() >= MIN_COMPACT_LABEL_LENGTH
+                    && !compact.equals(brandLabel)
+                    && compact.contains(brandLabel);
+            if (!tokenMatch && !compactMatch) {
+                continue;
+            }
+            if (BrandConstants.COMMON_WORD_BRAND_LABELS.contains(brandLabel) && !hasLureWord(tokens, brandLabel)) {
+                continue;
+            }
+            return new LookalikeFinding(
+                "brand_in_domain",
+                brand,
+                "Domain " + domain + " puts \"" + brandLabel + "\" in its own name, so it reads as "
+                    + brand + " while it is an unrelated domain that brand does not own"
+            );
+        }
+        return null;
+    }
+
+    private boolean hasLureWord(Set<String> tokens, String brandLabel) {
+        return tokens.stream()
+                .filter(token -> !token.equals(brandLabel))
+                .anyMatch(BrandConstants.LURE_WORDS::contains);
+    }
+
     public LookalikeFinding checkTldSwap(String domain) {
         String lower = domain.toLowerCase(Locale.ROOT);
         if (BrandConstants.BRAND_SET.contains(lower)) {
@@ -342,6 +423,9 @@ public class LookalikeDetector {
         // whole point of this one.
         LookalikeFinding f5 = checkBrandSubdomain(hostname);
         if (f5 != null) findings.add(f5);
+
+        LookalikeFinding f6 = checkBrandInDomain(hostname);
+        if (f6 != null) findings.add(f6);
 
         return findings;
     }
