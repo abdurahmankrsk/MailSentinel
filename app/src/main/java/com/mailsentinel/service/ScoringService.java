@@ -24,6 +24,7 @@ public class ScoringService {
         put("homoglyph", "homoglyph / mixed-script");
         put("tld_swap", "TLD swap");
         put("brand_subdomain", "brand-in-subdomain");
+        put("brand_in_domain", "brand-in-domain-name");
     }};
 
     private final AuthHeaderService authHeaderService;
