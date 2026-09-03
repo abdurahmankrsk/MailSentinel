@@ -1,5 +1,6 @@
 package com.mailsentinel.service;
 
+import com.mailsentinel.config.BrandConstants;
 import com.mailsentinel.config.ScoringConstants;
 import com.mailsentinel.dto.*;
 import org.springframework.stereotype.Service;
@@ -251,7 +252,7 @@ public class ScoringService {
             .mapToInt(CheckResult::weight)
             .sum();
         int score = Math.min(100, rawScore);
-        return new ScanResponse(score, checks, null);
+        return new ScanResponse(score, checks, null, BrandConstants.brandCount());
     }
 
     public ScanResponse runScan(String type, String content) {
