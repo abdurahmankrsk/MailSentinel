@@ -94,7 +94,7 @@ class AiAnalysisServiceTest {
     // failed-check weights across deterministic + AI findings combined -- it doesn't
     // trust this record's own precomputed score field once AI findings are merged in.
     private ScanResponse deterministic() {
-        return new ScanResponse(18, List.of(new CheckResult("SPF", false, 18, "no SPF record")), null);
+        return new ScanResponse(18, List.of(new CheckResult("SPF", false, 18, "no SPF record")), null, 70);
     }
 
     // scansUsed is only ever mutated via the real atomic repository UPDATE (see
