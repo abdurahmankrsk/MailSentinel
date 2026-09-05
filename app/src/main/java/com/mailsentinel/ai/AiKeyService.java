@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -81,6 +82,15 @@ public class AiKeyService {
         return new AiKeyStatus(displayLabel, last4);
     }
 
+    /**
+     * Transactional because deleteByUserId is a derived delete query: Spring Data runs
+     * those as an em.remove() per matching row, which needs a real write transaction.
+     * Repository CRUD methods bring their own; a derived one inherits only
+     * SimpleJpaRepository's read-only default, so without this the call blows up with
+     * "No EntityManager with actual transaction available" and the user can never
+     * remove a key they saved.
+     */
+    @Transactional
     public void delete(Long userId) {
         repository.deleteByUserId(userId);
     }
