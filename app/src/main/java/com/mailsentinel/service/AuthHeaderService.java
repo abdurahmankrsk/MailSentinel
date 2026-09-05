@@ -47,12 +47,26 @@ public class AuthHeaderService {
     }
 
     private CheckResult makeCheck(String name, String weightKey, boolean headerPresent, String value, String mechanism) {
-        if (!headerPresent || value == null) {
+        if (!headerPresent) {
             return new CheckResult(
                 name,
                 true,
                 ScoringConstants.getWeight(weightKey),
                 "No Authentication-Results header present to evaluate " + mechanism
+            );
+        }
+        // A header that exists but stays silent about one mechanism is a different fact
+        // from no header at all, and the reader can verify which they are looking at --
+        // the email is on screen in front of them. Reporting "no header present" for a
+        // message that visibly has one says something false about what they pasted, and
+        // hides the mildly interesting part: the receiving server reported on the other
+        // mechanisms and not this one.
+        if (value == null) {
+            return new CheckResult(
+                name,
+                true,
+                ScoringConstants.getWeight(weightKey),
+                "Authentication-Results header is present but reports no " + mechanism + " result"
             );
         }
         boolean passed = "pass".equalsIgnoreCase(value);

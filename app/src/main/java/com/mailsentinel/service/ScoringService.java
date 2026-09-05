@@ -105,30 +105,6 @@ public class ScoringService {
         );
     }
 
-    private CheckResult shortenerCheck(String hostname) {
-        boolean flagged = UrlUtils.isShortener(hostname);
-        return new CheckResult(
-            "URL shortener",
-            !flagged,
-            ScoringConstants.getWeight("url_shortener"),
-            flagged
-                ? hostname + " is a known URL shortener, so the real destination is hidden until it is opened"
-                : "Host is not a known URL shortener"
-        );
-    }
-
-    private CheckResult ipHostnameCheck(String name, String hostname) {
-        boolean flagged = hostname != null && UrlUtils.isIpLiteral(hostname);
-        return new CheckResult(
-            name,
-            !flagged,
-            ScoringConstants.getWeight("ip_hostname"),
-            flagged
-                ? "Host " + hostname + " is a raw IP address, not a domain name"
-                : "Host is a domain name, not a raw IP address"
-        );
-    }
-
     public ScanResponse scanEmail(String raw) {
         ParsedEmail parsed = emailParserService.parseEmail(raw);
         List<CheckResult> checks = new ArrayList<>();

@@ -76,6 +76,22 @@ class AuthHeaderServiceTest {
     }
 
     @Test
+    void aHeaderThatOmitsOneMechanismIsNotReportedAsAMissingHeader() {
+        // The sibling case to anAbsentHeaderProducesThreePassingChecksThatSayWhy: here the
+        // header is right there in the pasted message and simply says nothing about DKIM.
+        // Both stay neutral, but they are different facts and the reader can tell which
+        // one they are looking at, so the detail must not claim the header is absent.
+        List<com.mailsentinel.dto.CheckResult> checks =
+                service.toCheckResults(service.parseAuthenticationResults("mx.example.com; spf=pass"));
+
+        com.mailsentinel.dto.CheckResult dkim = checks.get(1);
+        assertTrue(dkim.passed(), "an unreported mechanism still must not be scored as a failure");
+        assertFalse(dkim.detail().contains("No Authentication-Results header"),
+                "the header is present; saying otherwise contradicts the email on screen: " + dkim.detail());
+        assertTrue(dkim.detail().contains("reports no DKIM result"), dkim.detail());
+    }
+
+    @Test
     void onlyAnExplicitNonPassCountsAgainstTheScore() {
         List<com.mailsentinel.dto.CheckResult> checks =
                 service.toCheckResults(service.parseAuthenticationResults("mx; spf=pass; dkim=fail; dmarc=none"));
