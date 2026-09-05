@@ -12,12 +12,31 @@ export default function Modal({ open, onClose, titleId, title, children }) {
   // The control that opened the dialog, so focus can go back where it came from.
   const openerRef = useRef(null)
 
+  // Split from the key handler below on purpose. Taking focus and locking scroll happen
+  // once, when the dialog opens -- so this effect depends only on `open`. Callers pass
+  // onClose as an inline arrow (a fresh identity every render), so while it sat in these
+  // deps the whole effect tore down and re-ran on any unrelated parent render: it
+  // restored focus to the opener, then pulled it back to the first input. Type your
+  // email, tab to the password field, and a scan finishing in the background behind the
+  // dialog would drop your caret back in the email box.
   useEffect(() => {
     if (!open) return undefined
 
     openerRef.current = document.activeElement
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    dialogRef.current?.querySelector('input')?.focus()
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      openerRef.current?.focus?.()
+    }
+  }, [open])
+
+  // The key handler genuinely does need the current onClose, and re-subscribing a
+  // listener is free -- no focus or scroll state rides along with it.
+  useEffect(() => {
+    if (!open) return undefined
 
     function handleKeyDown(event) {
       if (event.key === 'Escape') {
@@ -51,13 +70,7 @@ export default function Modal({ open, onClose, titleId, title, children }) {
     }
 
     document.addEventListener('keydown', handleKeyDown)
-    dialogRef.current?.querySelector('input')?.focus()
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousOverflow
-      openerRef.current?.focus?.()
-    }
+    return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open, onClose])
 
   if (!open) return null
