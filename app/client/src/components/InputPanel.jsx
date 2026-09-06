@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import { MoreVerticalIcon } from './Icons.jsx'
 
-const URL_LINE = /^(https?:\/\/)?[\w-]+(\.[\w-]+)+(\/|$)/i
+// The host may be followed by a path, a port, a query or a fragment -- or nothing at
+// all. Only "/" and end-of-token used to count, so an ordinary link carrying a query
+// string ("https://paypal.com?utm_source=news"), a fragment, or a port was not
+// recognised as a URL. Detection is all-or-nothing across the paste, so one such link
+// dragged an entire list of links over to the email scanner, which runs a different
+// check list and weights the same lookalike domain differently.
+const URL_LINE = /^(https?:\/\/)?[\w-]+(\.[\w-]+)+([/:?#]|$)/i
 
 // A paste of several links is still a URL scan, so every non-empty line has to look
 // like one -- a single header line is enough to make it an email again.
