@@ -14,9 +14,12 @@ import LandingFooter from './components/LandingFooter.jsx'
 import { scanContent, fetchUsage, fetchAiKeyConfig, fetchAiKeyStatus, logoutUser } from './api.js'
 import { getToken, getEmail, setSession, clearSession } from './auth.js'
 
-const AI_STATUS_MESSAGES = {
+// Fallback wording only, for a status a future server knows about and this build does
+// not. The server sends a written-for-the-reader `message` with every non-completed
+// status, so that is what gets shown when it is there.
+const AI_STATUS_FALLBACK = {
   AI_SCAN_LIMIT_REACHED: 'AI analysis limit reached for this billing period.',
-  AI_PROVIDER_ERROR: 'AI analysis failed and was not charged against your allowance.',
+  AI_PROVIDER_ERROR: 'AI analysis could not be completed.',
   AI_REQUEST_IN_PROGRESS: 'Another analysis for this request is already in progress.',
 }
 
@@ -105,6 +108,17 @@ export default function App() {
     }
   }
 
+  // One sentence, not two. This used to print the generic line for the status and then
+  // append the server's own message, which for AI_REQUEST_IN_PROGRESS and the premium
+  // AI_PROVIDER_ERROR meant the identical sentence twice in a row -- the strings on both
+  // sides were byte-for-byte the same. Worse on the bring-your-own-key paths, where the
+  // generic line claims the scan "was not charged against your allowance": BYOK has no
+  // allowance at all, so the reader got a false statement immediately contradicted by
+  // the real reason ("AI analysis failed using your own API key") on the same line.
+  const aiNotice = result?.aiAnalysis
+    ? result.aiAnalysis.message || AI_STATUS_FALLBACK[result.aiAnalysis.status]
+    : null
+
   return (
     <div className="app">
       <header className="app-header">
@@ -158,12 +172,7 @@ export default function App() {
               <strong>AI analysis:</strong> {result.aiAnalysis.summary}
             </div>
           )}
-          {result.aiAnalysis && AI_STATUS_MESSAGES[result.aiAnalysis.status] && (
-            <div className="error-banner">
-              {AI_STATUS_MESSAGES[result.aiAnalysis.status]}
-              {result.aiAnalysis.message ? ` ${result.aiAnalysis.message}` : ''}
-            </div>
-          )}
+          {aiNotice && <div className="error-banner">{aiNotice}</div>}
         </div>
       )}
 
