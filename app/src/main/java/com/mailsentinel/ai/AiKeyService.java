@@ -101,11 +101,28 @@ public class AiKeyService {
 
     /**
      * Everything AiAnalysisService needs to call this user's own endpoint, or empty
-     * if they haven't configured one. Never exposed outside the backend.
+     * if they haven't configured a usable one. Never exposed outside the backend.
+     *
+     * <p>A stored key that will not decrypt counts as "not configured" rather than as
+     * an error. Rotating or clearing {@code BYOK_ENCRYPTION_KEY} are both supported
+     * operations -- clearing it is documented as switching the feature off gracefully
+     * -- but every row already written stays behind, encrypted under the old secret.
+     * Letting the decrypt failure escape turned that into a 500 on {@code /api/scan}
+     * for those users: the deterministic scan, which is the whole free product and
+     * needs no key at all, was thrown away because an optional add-on could not read
+     * its own stored secret. Logged rather than silent, because it is the operator's
+     * problem to fix and nothing in the request can.
      */
     public Optional<ActiveAiKey> activeKeyFor(Long userId) {
-        return repository.findByUserId(userId)
-                .map(k -> new ActiveAiKey(k.getBaseUrl(), k.getModel(), cipher.decrypt(k.getKeyCiphertext())));
+        return repository.findByUserId(userId).flatMap(k -> {
+            try {
+                return Optional.of(new ActiveAiKey(k.getBaseUrl(), k.getModel(), cipher.decrypt(k.getKeyCiphertext())));
+            } catch (RuntimeException e) {
+                log.warn("Stored AI key for user {} could not be decrypted, treating it as unset: {}",
+                        userId, e.toString());
+                return Optional.empty();
+            }
+        });
     }
 
     /**
