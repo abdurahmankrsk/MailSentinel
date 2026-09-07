@@ -1120,6 +1120,23 @@ textarea:focus {
   margin-top: 1.5rem;
 }
 
+/* Stands in for .plans-cta once you are signed in, where a "create an account" button
+   would be an offer you have already taken. Sized like the section lede rather than a
+   button, because it reports where you stand and points onward -- it is not the
+   primary action of the page. */
+.plans-cta-note {
+  margin-top: 1.5rem;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.plans-cta-note a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* ---------- Footer ---------- */
 
 .landing-footer {

@@ -178,7 +178,7 @@ export default function App() {
 
       <TechniqueBreakdown />
       <ScoringPhilosophy />
-      <PlanTeaser onSignUp={() => setAuthMode('register')} />
+      <PlanTeaser email={email} plan={usage?.plan} onSignUp={() => setAuthMode('register')} />
       <BringYourOwnKey
         email={email}
         aiKeyStatus={aiKeyStatus}

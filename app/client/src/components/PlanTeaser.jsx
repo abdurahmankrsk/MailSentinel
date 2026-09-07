@@ -1,4 +1,16 @@
-export default function PlanTeaser({ onSignUp }) {
+/**
+ * The closing call to action depends on who is reading it. Signed out, the useful next
+ * step is an account. Signed in, "Create a free account" was still the only thing on
+ * offer -- and it opened the registration dialog for an account the reader already had.
+ *
+ * There is no checkout to send them to instead (Premium is priced here but not yet
+ * purchasable), so rather than swap one dead end for another this points at the path
+ * that does work today: bring-your-own-key, the section immediately below, which gets
+ * them AI-assisted analysis on any plan.
+ */
+export default function PlanTeaser({ email, plan, onSignUp }) {
+  const isPremium = plan === 'PREMIUM'
+
   return (
     <section className="plans" aria-labelledby="plans-title">
       <h2 id="plans-title" className="section-title">Free, with room to grow</h2>
@@ -47,9 +59,23 @@ export default function PlanTeaser({ onSignUp }) {
         </div>
       </div>
 
-      <button type="button" className="nav-button nav-button-primary plans-cta" onClick={onSignUp}>
-        Create a free account
-      </button>
+      {email ? (
+        <p className="plans-cta-note">
+          {isPremium
+            ? "You're on Premium, so AI-assisted analysis already runs on every scan."
+            : (
+              <>
+                You're signed in on the Free plan.{' '}
+                <a href="#byok-title">Add your own API key</a> to get AI-assisted analysis
+                at no extra cost.
+              </>
+            )}
+        </p>
+      ) : (
+        <button type="button" className="nav-button nav-button-primary plans-cta" onClick={onSignUp}>
+          Create a free account
+        </button>
+      )}
     </section>
   )
 }
