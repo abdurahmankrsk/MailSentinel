@@ -40,6 +40,23 @@ public final class ScoringConstants {
      * first {@link #MAX_HITS_PER_DETAIL} and counting the remainder. Without the
      * count the reader has no way to tell a truncated list from a complete one.
      */
+    /**
+     * Appends what a check did <em>not</em> look at, when the input was capped.
+     *
+     * <p>Without this, a truncated scan still reported "No link uses a raw IP address
+     * as the host" -- a positive claim about links that were discarded before any
+     * check ran. Fifty-six pasted links with the phishing one in position 56 scored 0
+     * and read as clean. The cap itself is right; announcing a clean result over a
+     * silently shortened list is not.
+     */
+    public static String withTruncationNotice(String detail, int dropped) {
+        if (dropped <= 0) {
+            return detail;
+        }
+        return detail + " (" + dropped + (dropped == 1 ? " further link was" : " further links were")
+                + " past the " + MAX_LINKS_PER_SCAN + "-link limit and not scanned)";
+    }
+
     public static String joinHits(List<String> hits) {
         if (hits.size() <= MAX_HITS_PER_DETAIL) {
             return String.join("; ", hits);

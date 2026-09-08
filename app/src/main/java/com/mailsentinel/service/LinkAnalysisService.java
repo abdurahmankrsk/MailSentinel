@@ -3,6 +3,7 @@ package com.mailsentinel.service;
 import com.mailsentinel.config.ScoringConstants;
 import com.mailsentinel.dto.CheckResult;
 import com.mailsentinel.dto.ExtractedLink;
+import com.mailsentinel.dto.ExtractedLinks;
 import com.mailsentinel.dto.LookalikeFinding;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -92,11 +93,16 @@ public class LinkAnalysisService {
 
     /**
      * Deduplicated and capped at {@link ScoringConstants#MAX_LINKS_PER_SCAN}, the same
-     * bound the URL path has always applied to a pasted list. The cap sits after
-     * deduplication so an email that repeats one link 200 times still gets every
-     * distinct link it contains looked at.
+     * bound the URL path applies to a pasted list. The cap sits after deduplication so
+     * an email that repeats one link 200 times still gets every distinct link it
+     * contains looked at.
+     *
+     * <p>Returns how many distinct links were left over, because a check that reports
+     * "no lookalike brand domains found" over a truncated list is making a claim about
+     * links it never saw -- an email whose 56th link was paypa1.com scored 0 and read
+     * as clean.
      */
-    public List<ExtractedLink> extractLinks(String textBody, String htmlBody) {
+    public ExtractedLinks extract(String textBody, String htmlBody) {
         List<ExtractedLink> sourceLinks = htmlBody != null ? extractFromHtml(htmlBody) : List.of();
         if (sourceLinks.isEmpty() && textBody != null) {
             sourceLinks = extractFromText(textBody);
@@ -104,15 +110,23 @@ public class LinkAnalysisService {
 
         List<ExtractedLink> uniqueLinks = new ArrayList<>();
         Set<String> seen = new HashSet<>();
+        int dropped = 0;
         for (ExtractedLink link : sourceLinks) {
+            if (!seen.add(link.href())) {
+                continue; // a repeat of a link already counted, in or out of the cap
+            }
             if (uniqueLinks.size() >= ScoringConstants.MAX_LINKS_PER_SCAN) {
-                break;
+                dropped++;
+                continue;
             }
-            if (seen.add(link.href())) {
-                uniqueLinks.add(link);
-            }
+            uniqueLinks.add(link);
         }
-        return uniqueLinks;
+        return new ExtractedLinks(uniqueLinks, dropped);
+    }
+
+    /** The links only, for callers that have no use for the dropped count. */
+    public List<ExtractedLink> extractLinks(String textBody, String htmlBody) {
+        return extract(textBody, htmlBody).analyzed();
     }
 
     /**
@@ -142,6 +156,15 @@ public class LinkAnalysisService {
     }
 
     public List<CheckResult> analyzeLinks(List<ExtractedLink> links) {
+        return analyzeLinks(links, 0);
+    }
+
+    /**
+     * @param dropped distinct links the cap left unexamined; every check's detail says
+     *                so, because "nothing found" over a shortened list is not the same
+     *                claim as "nothing found"
+     */
+    public List<CheckResult> analyzeLinks(List<ExtractedLink> links, int dropped) {
         List<String> lookalikeHits = new ArrayList<>();
         List<String> shortenerHits = new ArrayList<>();
         List<String> mismatchHits = new ArrayList<>();
@@ -181,33 +204,33 @@ public class LinkAnalysisService {
                 "Suspicious links in body",
                 lookalikeHits.isEmpty(),
                 ScoringConstants.getWeight("link_lookalike"),
-                lookalikeHits.isEmpty()
+                ScoringConstants.withTruncationNotice(lookalikeHits.isEmpty()
                     ? "No lookalike brand domains found among links in the body"
-                    : ScoringConstants.joinHits(lookalikeHits)
+                    : ScoringConstants.joinHits(lookalikeHits), dropped)
             ),
             new CheckResult(
                 "URL shortener present",
                 shortenerHits.isEmpty(),
                 ScoringConstants.getWeight("url_shortener"),
-                shortenerHits.isEmpty()
+                ScoringConstants.withTruncationNotice(shortenerHits.isEmpty()
                     ? "No known URL-shortener domains found in links"
-                    : "Shortened link(s) found: " + ScoringConstants.joinHits(shortenerHits)
+                    : "Shortened link(s) found: " + ScoringConstants.joinHits(shortenerHits), dropped)
             ),
             new CheckResult(
                 "Anchor text / link destination mismatch",
                 mismatchHits.isEmpty(),
                 ScoringConstants.getWeight("anchor_mismatch"),
-                mismatchHits.isEmpty()
+                ScoringConstants.withTruncationNotice(mismatchHits.isEmpty()
                     ? "No anchor text found that names a different domain than its link target"
-                    : ScoringConstants.joinHits(mismatchHits)
+                    : ScoringConstants.joinHits(mismatchHits), dropped)
             ),
             new CheckResult(
                 "Raw IP address as link host",
                 ipHostHits.isEmpty(),
                 ScoringConstants.getWeight("ip_hostname"),
-                ipHostHits.isEmpty()
+                ScoringConstants.withTruncationNotice(ipHostHits.isEmpty()
                     ? "No links use a raw IP address as the host"
-                    : "Link(s) use a raw IP address instead of a domain: " + ScoringConstants.joinHits(ipHostHits)
+                    : "Link(s) use a raw IP address instead of a domain: " + ScoringConstants.joinHits(ipHostHits), dropped)
             )
         );
     }
