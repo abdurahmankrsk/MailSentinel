@@ -132,8 +132,8 @@ public class ScoringService {
         checks.add(displayNameImpersonationCheck(parsed.senderDisplayName(), senderDomain));
 
         // 4. In-body link analysis
-        List<ExtractedLink> links = linkAnalysisService.extractLinks(parsed.textBody(), parsed.htmlBody());
-        checks.addAll(linkAnalysisService.analyzeLinks(links));
+        ExtractedLinks links = linkAnalysisService.extract(parsed.textBody(), parsed.htmlBody());
+        checks.addAll(linkAnalysisService.analyzeLinks(links.analyzed(), links.dropped()));
 
         return finalizeScore(checks);
     }
@@ -149,9 +149,14 @@ public class ScoringService {
         if (raw == null || raw.isBlank()) {
             return List.of();
         }
+        // Distinct, and in the order pasted. Deduplicating before the cap is applied --
+        // rather than capping the raw token list, as this used to -- means 60 copies of
+        // one link no longer crowd out the one link that differs, and it makes the
+        // dropped count below a count of real links rather than of repeats. The email
+        // path has always deduplicated first; these two now agree.
         return Arrays.stream(raw.trim().split("\\s+"))
             .filter(s -> !s.isBlank())
-            .limit(ScoringConstants.MAX_LINKS_PER_SCAN)
+            .distinct()
             .toList();
     }
 
@@ -160,20 +165,28 @@ public class ScoringService {
      * per link: twenty links would otherwise produce a hundred rows to read. The
      * detail names exactly which links tripped it.
      */
-    private CheckResult aggregate(String name, String weightKey, List<String> hits, String passedDetail) {
+    private CheckResult aggregate(String name, String weightKey, List<String> hits, String passedDetail, int dropped) {
         return new CheckResult(
             name,
             hits.isEmpty(),
             ScoringConstants.getWeight(weightKey),
-            hits.isEmpty() ? passedDetail : ScoringConstants.joinHits(hits)
+            ScoringConstants.withTruncationNotice(
+                hits.isEmpty() ? passedDetail : ScoringConstants.joinHits(hits), dropped)
         );
     }
 
     public ScanResponse scanUrl(String raw) {
-        List<String> urls = splitUrls(raw);
-        if (urls.isEmpty()) {
-            urls = List.of(raw == null ? "" : raw.trim());
+        List<String> distinctUrls = splitUrls(raw);
+        if (distinctUrls.isEmpty()) {
+            distinctUrls = List.of(raw == null ? "" : raw.trim());
         }
+        // The cap bounds the work one request can cause; the count of what it left out
+        // is what stops the checks below claiming "no link uses a raw IP address" about
+        // links that were discarded before anything looked at them.
+        int dropped = Math.max(0, distinctUrls.size() - ScoringConstants.MAX_LINKS_PER_SCAN);
+        List<String> urls = dropped == 0
+            ? distinctUrls
+            : distinctUrls.subList(0, ScoringConstants.MAX_LINKS_PER_SCAN);
 
         // Every hostname is resolved once and reused by all the checks below.
         Map<String, String> hostByUrl = new LinkedHashMap<>();
@@ -211,13 +224,14 @@ public class ScoringService {
                 "URL domain " + entry.getValue(),
                 entry.getKey(),
                 lookalikeHits.getOrDefault(entry.getKey(), List.of()),
-                "No " + entry.getValue() + " pattern detected for " + scope
+                "No " + entry.getValue() + " pattern detected for " + scope,
+                dropped
             ));
         }
         checks.add(aggregate("Raw IP address as hostname", "ip_hostname", ipHits,
-            "No link uses a raw IP address as the host"));
+            "No link uses a raw IP address as the host", dropped));
         checks.add(aggregate("URL shortener", "url_shortener", shortenerHits,
-            "No link uses a known URL shortener"));
+            "No link uses a known URL shortener", dropped));
 
         return finalizeScore(checks);
     }
