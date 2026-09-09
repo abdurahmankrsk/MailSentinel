@@ -218,9 +218,25 @@ public class LookalikeDetector {
      * brand. The deception isn't in the registrable domain at all, it's that a human
      * reading the address bar left-to-right sees "paypal.com" first and stops there.
      *
-     * Matching is on whole subdomain labels, so "paypal" in paypal.com.evil.ru fires
-     * while "mypaypalinvoices" does not. A brand on its own registrable domain
-     * (mail.google.com) is the ordinary case and passes.
+     * A brand on its own registrable domain (mail.google.com) is the ordinary case and
+     * passes.
+     *
+     * <p>Subdomain labels are read with exactly the rules {@link #checkBrandInDomain}
+     * applies to the registrable label -- see {@link #brandClaimedBy}. They used to be
+     * matched as whole labels with no corroboration rule at all, and the two checks
+     * disagreeing about the same word cut both ways:
+     *
+     * <ul>
+     *   <li>{@code paypal-secure.evil.com} scored <b>0</b>. The subdomain check wanted
+     *       the label to be exactly "paypal", and the registrable-label check only ever
+     *       looks at "evil" -- so the more convincing of the two hostnames slipped past
+     *       both, and it costs an attacker nothing: any wildcard subdomain gives it away
+     *       without registering a domain at all.</li>
+     *   <li>{@code ups.acme-logistics.com} scored <b>62</b>, "High risk", on a
+     *       solo-red weight that convicts alone. Any company with a ups., target. or
+     *       outlook. subdomain was called hostile, while the identical word in a
+     *       registrable label was correctly ignored.</li>
+     * </ul>
      */
     public LookalikeFinding checkBrandSubdomain(String hostname) {
         if (hostname == null || hostname.isBlank()) {
@@ -236,19 +252,60 @@ public class LookalikeDetector {
             return null; // no subdomain to inspect
         }
 
-        Set<String> labels = new HashSet<>(
-            Arrays.asList(lower.substring(0, lower.length() - suffix.length()).split("\\.")));
+        List<String> labels = List.of(lower.substring(0, lower.length() - suffix.length()).split("\\."));
+        // Corroboration is searched across the whole subdomain rather than within one
+        // label, so "ups.tracking.evil.com" reads the same as "ups-tracking.evil.com".
+        Set<String> tokens = tokensOf(labels);
 
+        String brand = brandClaimedBy(tokens, labels);
+        if (brand == null) {
+            return null;
+        }
+        String label = BrandConstants.labelOf(brand);
+        return new LookalikeFinding(
+            "brand_subdomain",
+            brand,
+            "Hostname " + hostname + " carries \"" + label + "\" in a subdomain, so it reads as "
+                + brand + " while it actually resolves to " + domain
+        );
+    }
+
+    /** Every hyphen/underscore-separated token across a set of hostname labels. */
+    private static Set<String> tokensOf(List<String> labels) {
+        Set<String> tokens = new LinkedHashSet<>();
+        for (String label : labels) {
+            Collections.addAll(tokens, label.split("[-_]+"));
+        }
+        return tokens;
+    }
+
+    /**
+     * The watched brand these hostname tokens claim, or null if none.
+     *
+     * <p>One definition, used by both the subdomain and registrable-label checks. It is
+     * one method rather than two because they had drifted: the same word was a
+     * conviction in one position and ignored in the other, which produced a false
+     * negative and a false positive at the same time.
+     *
+     * @param tokens every hyphen/underscore-separated token in the part being examined,
+     *               used both to match a brand and to corroborate a common-word one
+     * @param labels the raw labels, for matching a long brand name written without a
+     *               separator ("microsoftlogin")
+     */
+    private String brandClaimedBy(Set<String> tokens, List<String> labels) {
         for (String brand : BrandConstants.BRAND_DOMAINS) {
-            String label = brand.split("\\.", 2)[0];
-            if (labels.contains(label)) {
-                return new LookalikeFinding(
-                    "brand_subdomain",
-                    brand,
-                    "Hostname " + hostname + " carries \"" + label + "\" in a subdomain, so it reads as "
-                        + brand + " while it actually resolves to " + domain
-                );
+            String brandLabel = BrandConstants.labelOf(brand);
+            boolean matched = tokens.contains(brandLabel)
+                || (brandLabel.length() >= MIN_COMPACT_LABEL_LENGTH && labels.stream()
+                        .map(label -> label.replace("-", "").replace("_", ""))
+                        .anyMatch(compact -> !compact.equals(brandLabel) && compact.contains(brandLabel)));
+            if (!matched) {
+                continue;
             }
+            if (BrandConstants.COMMON_WORD_BRAND_LABELS.contains(brandLabel) && !hasLureWord(tokens, brandLabel)) {
+                continue;
+            }
+            return brand;
         }
         return null;
     }
@@ -291,35 +348,25 @@ public class LookalikeDetector {
             return null;
         }
         String label = domain.split("\\.", 2)[0];
-        Set<String> tokens = new LinkedHashSet<>(Arrays.asList(label.split("[-_]+")));
+        List<String> labels = List.of(label);
+        Set<String> tokens = tokensOf(labels);
         // A label that is nothing but the brand name is a TLD swap, and checkTldSwap
         // already reports it. Firing here as well would score one fact twice.
         if (tokens.size() == 1 && BrandConstants.BRAND_SET.stream()
                 .anyMatch(owned -> owned.split("\\.", 2)[0].equals(label))) {
             return null;
         }
-        String compact = label.replace("-", "").replace("_", "");
 
-        for (String brand : BrandConstants.BRAND_DOMAINS) {
-            String brandLabel = BrandConstants.labelOf(brand);
-            boolean tokenMatch = tokens.contains(brandLabel);
-            boolean compactMatch = brandLabel.length() >= MIN_COMPACT_LABEL_LENGTH
-                    && !compact.equals(brandLabel)
-                    && compact.contains(brandLabel);
-            if (!tokenMatch && !compactMatch) {
-                continue;
-            }
-            if (BrandConstants.COMMON_WORD_BRAND_LABELS.contains(brandLabel) && !hasLureWord(tokens, brandLabel)) {
-                continue;
-            }
-            return new LookalikeFinding(
-                "brand_in_domain",
-                brand,
-                "Domain " + domain + " puts \"" + brandLabel + "\" in its own name, so it reads as "
-                    + brand + " while it is an unrelated domain that brand does not own"
-            );
+        String brand = brandClaimedBy(tokens, labels);
+        if (brand == null) {
+            return null;
         }
-        return null;
+        return new LookalikeFinding(
+            "brand_in_domain",
+            brand,
+            "Domain " + domain + " puts \"" + BrandConstants.labelOf(brand) + "\" in its own name, so it reads as "
+                + brand + " while it is an unrelated domain that brand does not own"
+        );
     }
 
     private boolean hasLureWord(Set<String> tokens, String brandLabel) {
