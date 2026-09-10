@@ -17,7 +17,7 @@ existing suite does not cover.
 
 ## Summary
 
-Status: **#1, #2, #4, #5, #6, #8, #9, #10, #11, #13, #14, #17, #18 and #19 are fixed**, and #7 is half done (see "Resolved" below). The rest stand as written.
+Status: **#1, #2, #4, #5, #6, #8, #9, #10, #11, #12, #13, #14, #17, #18 and #19 are fixed**, and #7 and #15 are half done (see "Resolved" below). The rest stand as written.
 
 | # | Severity | Area | Finding |
 |---|---|---|---|
@@ -32,10 +32,10 @@ Status: **#1, #2, #4, #5, #6, #8, #9, #10, #11, #13, #14, #17, #18 and #19 are f
 | 9 | ✅ 🟡 | Auth | ~~BCrypt silently truncates passwords at 72 bytes~~ — fixed |
 | 10 | ✅ 🟡 | UI | ~~Auth dialog title desyncs from the selected tab~~ — fixed |
 | 11 | ✅ 🟡 | Detection | ~~Unparseable email scores 20 and leaks the internal `unknown` placeholder~~ — fixed |
-| 12 | 🟡 | UI | Plans/"Upgrade to PREMIUM" are dead ends; signup CTA shown to signed-in users |
+| 12 | ✅ 🟡 | UI | ~~Plans/"Upgrade to PREMIUM" are dead ends; signup CTA shown to signed-in users~~ — fixed |
 | 13 | ✅ 🟡 | Detection | ~~33-brand watch list — anything outside it is silently reported as clean~~ — fixed |
 | 14 | ✅ 🟡 | Perf | ~~Email link extraction is unbounded (URL scans cap at 50, email scans don't)~~ — fixed |
-| 15 | 🟡 | Perf | DNS lookups uncached; first scan of a domain takes ~9 s, with no client timeout |
+| 15 | ◐ 🟡 | Perf | ~~no client timeout~~ fixed — **DNS caching and concurrent lookups still open** |
 | 16 | ⚪ | Legal | No Terms, Privacy Policy, or contact anywhere, despite EUR pricing |
 | 17 | ✅ ⚪ | Privacy | ~~Scan results stay on screen after logout~~ — fixed |
 | 18 | ◐ ⚪ | Security | ~~No CSP~~ — fixed; the token is still in `localStorage` |
@@ -872,6 +872,35 @@ existing note is right for it.
 the token rule, since the candidate's tokens are split on hyphens and could never equal
 it. No brand currently on the list is affected; a future one would need its label
 handled as a phrase.
+
+**#12 — signup CTA shown to signed-in users.** `PlanTeaser` rendered its
+"Create a free account" button unconditionally; reproduced in the browser signed in as
+`signed-in@example.com`, clicking it opened the "Create your account" dialog for an
+account that already existed. The section now takes `email` and `plan`. Signed out it is
+unchanged. Signed in it drops the button for a line that states the current plan, and —
+since there is still no checkout to send anyone to (#3) — links to bring-your-own-key,
+the section immediately below, which is the path to AI-assisted analysis that actually
+works today. A Premium reader is told AI analysis already runs, rather than being sold
+something they have.
+
+*Not addressed:* `UsagePanel`'s "Upgrade to PREMIUM for AI-powered analysis" is still
+inert text. Making it a real control needs a destination, and that is #3.
+
+**#15 (client half) — no timeout on the scan request.** `scanContent` called `fetch`
+with no `AbortController`, so a request that never came back left the Scan button
+disabled on "Scanning..." indefinitely — measured with a stubbed never-settling fetch:
+after 7 s the button was still disabled, with no error, no cancel control, and no way
+out but reloading the page. There is now a 45 s bound, chosen to clear the server's own
+worst case (up to 25 s in an AI provider call plus two 3 s DNS lookups) so it only fires
+on a request that has genuinely gone missing. On abort the button re-enables and the
+banner reads "The scan took too long to answer and was stopped." Verified end to end.
+
+*Not addressed:* the server-side half — `lookup.setCache(null)`, a fresh `SimpleResolver`
+per call, and SPF/DMARC running sequentially. All three are real and worth doing, but the
+9.06 s cold measurement in this report could not be reproduced here: on this network
+`github.com` resolved in 408 ms cold and 31 ms warm, with SPF and DMARC both present. The
+severity depends heavily on the deploy's resolver, so the fix wants re-measuring where it
+was originally seen rather than being tuned blind.
 
 ---
 

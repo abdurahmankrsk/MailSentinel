@@ -19,13 +19,40 @@ async function parseErrorMessage(response) {
   return typeof message === 'object' ? JSON.stringify(message) : message
 }
 
+// A scan has no bound of its own. The server's worst case does: up to 25 s inside an AI
+// provider call plus two 3 s DNS lookups, so roughly half a minute is the longest a real
+// answer can take. Past that the request is not coming back, and fetch will wait forever
+// for it -- which left the Scan button disabled on "Scanning..." with no error, no cancel
+// and no way out but reloading the page. 45 s clears the server's own ceiling with room
+// to spare, so this only ever fires on a request that has genuinely gone missing.
+const SCAN_TIMEOUT_MS = 45_000
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+  // Wired by hand rather than with AbortSignal.timeout(), which Safari only shipped in 16.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error(
+        'The scan took too long to answer and was stopped. Check your connection and try again.',
+        { cause: error },
+      )
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 function authHeaders() {
   const token = getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 export async function scanContent(type, content) {
-  const response = await fetch(`${API_BASE}/api/scan`, {
+  const response = await fetchWithTimeout(`${API_BASE}/api/scan`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -33,7 +60,7 @@ export async function scanContent(type, content) {
       ...authHeaders(),
     },
     body: JSON.stringify({ type, content }),
-  })
+  }, SCAN_TIMEOUT_MS)
 
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response))
