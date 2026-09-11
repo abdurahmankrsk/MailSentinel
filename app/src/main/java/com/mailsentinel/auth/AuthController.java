@@ -120,20 +120,43 @@ public class AuthController {
      * Returns a fresh token because succeeding revokes every token the user holds,
      * this request's own included. Without the replacement, changing your password
      * would sign you out of the device you changed it on.
+     *
+     * Throttled through LoginThrottle, on the same budget as login. Requiring the
+     * current password is what stops a stolen token alone from locking the owner out,
+     * but unthrottled that requirement was an unlimited guessing oracle for exactly the
+     * token-holding attacker it exists to stop -- four wrong guesses all came back 401
+     * with no limit. Sharing login's budget rather than keeping a second one matters
+     * just as much: two budgets would double anyone's guesses by alternating endpoints.
      */
     @PostMapping("/change-password")
     public AuthResponse changePassword(
-            @AuthenticationPrincipal User currentUser, @RequestBody ChangePasswordRequest request) {
+            @AuthenticationPrincipal User currentUser, @RequestBody ChangePasswordRequest request,
+            HttpServletRequest httpRequest) {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A current and new password are required");
         }
+        String ip = ClientIpResolver.resolve(httpRequest, rateLimitProperties.isTrustForwardedFor());
+        String email = currentUser.getEmail();
+
+        RateLimitDecision blocked = loginThrottle.checkAllowed(ip, email);
+        if (blocked != null) {
+            throw new RateLimitedException(blocked.retryAfterSeconds());
+        }
         // The same rules registration applies -- a password set here must not be one
-        // the signup form would have rejected.
+        // the signup form would have rejected. Not counted as a failure: it rejects the
+        // request before any guess at the current password is evaluated.
         validatePassword(request.newPassword());
-        String newToken = authService.changePassword(
-                currentUser.getId(), request.currentPassword(), request.newPassword());
+
+        String newToken;
+        try {
+            newToken = authService.changePassword(currentUser.getId(), request.currentPassword(), request.newPassword());
+        } catch (InvalidCredentialsException e) {
+            loginThrottle.recordFailure(ip, email);
+            throw e;
+        }
+        loginThrottle.recordSuccess(ip, email);
         String plan = subscriptionService.currentPlan(currentUser.getId()).name();
-        return new AuthResponse(newToken, currentUser.getEmail(), plan);
+        return new AuthResponse(newToken, email, plan);
     }
 
     @PostMapping("/logout")

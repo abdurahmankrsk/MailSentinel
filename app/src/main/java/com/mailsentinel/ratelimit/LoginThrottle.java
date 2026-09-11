@@ -5,7 +5,13 @@ import org.springframework.stereotype.Service;
 import java.util.Locale;
 
 /**
- * Throttles online password guessing.
+ * Throttles online password guessing, on every path that verifies a password.
+ *
+ * That is login and change-password today, and they spend <em>one</em> shared budget
+ * per account and per address. change-password checks the current password so that a
+ * stolen token alone cannot lock the owner out -- but left outside this limiter, that
+ * check was an unlimited guessing oracle for exactly the attacker it exists to stop,
+ * and two separate budgets would simply double anyone's guesses by alternating.
  *
  * Counts *failures*, not attempts, so a person signing in repeatedly and correctly is
  * never locked out by their own success -- and a success clears the count outright.
