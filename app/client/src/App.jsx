@@ -178,7 +178,14 @@ export default function App() {
 
       <TechniqueBreakdown />
       <ScoringPhilosophy />
-      <PlanTeaser email={email} plan={usage?.plan} onSignUp={() => setAuthMode('register')} />
+      {/* byokEnabled is the same flag BringYourOwnKey renders on, so the plans note
+          can never link to a section that isn't on the page. */}
+      <PlanTeaser
+        email={email}
+        plan={usage?.plan}
+        byokEnabled={Boolean(aiKeyStatus?.featureEnabled)}
+        onSignUp={() => setAuthMode('register')}
+      />
       <BringYourOwnKey
         email={email}
         aiKeyStatus={aiKeyStatus}
