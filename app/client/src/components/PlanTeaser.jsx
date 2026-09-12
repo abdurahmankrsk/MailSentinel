@@ -7,8 +7,15 @@
  * purchasable), so rather than swap one dead end for another this points at the path
  * that does work today: bring-your-own-key, the section immediately below, which gets
  * them AI-assisted analysis on any plan.
+ *
+ * That path only exists when the server has BYOK configured, which it is not by
+ * default -- a blank BYOK_ENCRYPTION_KEY switches the feature off and BringYourOwnKey
+ * renders nothing at all. Linking to #byok-title regardless pointed at an element that
+ * was not on the page, so the click did nothing, and the sentence promised a
+ * capability the deployment did not have. `byokEnabled` is the same fact the section
+ * itself keys off, so the two cannot disagree.
  */
-export default function PlanTeaser({ email, plan, onSignUp }) {
+export default function PlanTeaser({ email, plan, byokEnabled, onSignUp }) {
   const isPremium = plan === 'PREMIUM'
 
   return (
@@ -63,12 +70,15 @@ export default function PlanTeaser({ email, plan, onSignUp }) {
         <p className="plans-cta-note">
           {isPremium
             ? "You're on Premium, so AI-assisted analysis already runs on every scan."
-            : (
+            : byokEnabled ? (
               <>
                 You're signed in on the Free plan.{' '}
                 <a href="#byok-title">Add your own API key</a> to get AI-assisted analysis
                 at no extra cost.
               </>
+            ) : (
+              "You're signed in on the Free plan. Every deterministic check above already "
+                + "runs on every scan; AI-assisted analysis isn't available here yet."
             )}
         </p>
       ) : (
