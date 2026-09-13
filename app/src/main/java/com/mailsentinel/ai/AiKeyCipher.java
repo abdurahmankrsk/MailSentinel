@@ -16,9 +16,21 @@ import java.util.HexFormat;
  * endpoint with it), unlike password hashing (BCrypt) or token hashing (SHA-256, see
  * TokenGenerator), which are both deliberately one-way and never decrypted.
  *
- * Built on spring-security-crypto's Encryptors (AES-GCM under the hood), already a
- * transitive dependency via spring-boot-starter-security and previously unused --
- * not a hand-rolled javax.crypto implementation.
+ * Built on spring-security-crypto's Encryptors, already a transitive dependency via
+ * spring-boot-starter-security and previously unused -- not a hand-rolled
+ * javax.crypto implementation.
+ *
+ * {@code Encryptors.text} is <em>AES-256-CBC</em> with a fresh random IV per value: it
+ * delegates to {@code Encryptors.standard}, which builds an {@code AesBytesEncryptor}
+ * in its default CBC mode. (The GCM variant is {@code Encryptors.delux}; this comment
+ * previously claimed GCM, which was simply wrong.) CBC is unauthenticated, so a
+ * ciphertext altered in the database decrypts to garbage rather than being rejected as
+ * tampered -- which surfaces as a saved key that stops working, not as a forged one,
+ * and AiKeyService already treats an undecryptable row as "no key configured".
+ *
+ * Moving to delux would be a genuine improvement and is not a drop-in: every row
+ * already stored was written with CBC and would stop decrypting, so it needs a
+ * try-new-then-old read path or a re-encryption migration.
  *
  * Encryptors.text needs a password and a separate hex salt; only one secret
  * (mailsentinel.byok.encryption-key) is configured, so the salt is deterministically
