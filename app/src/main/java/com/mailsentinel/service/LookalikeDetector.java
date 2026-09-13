@@ -405,6 +405,14 @@ public class LookalikeDetector {
      * technique above scores it zero, while the recipient's mail client shows them the
      * word "Microsoft". A display name that names the brand it is actually sent from
      * (GitHub &lt;notifications@github.com&gt;) is the normal, legitimate case and passes.
+     *
+     * <p>A brand label that is also an ordinary English word needs the same
+     * corroboration the hostname checks require -- some other word in the display name
+     * has to be a recognised lure. The watch list carries "apple", "chase", "target",
+     * "outlook" and others as brands, and matching them bare turned everyday mail into
+     * a conviction: "Apple Orchard Farm" scored <b>65</b>, "treat this as hostile", and
+     * so did "Outlook Tips Weekly". "Apple Support" still fires, because "support" is
+     * what a phishing display name adds and a farm shop does not.
      */
     public LookalikeFinding checkDisplayNameImpersonation(String displayName, String senderDomain) {
         if (displayName == null || displayName.isBlank()) {
@@ -413,16 +421,22 @@ public class LookalikeDetector {
         String lowerName = displayName.toLowerCase(Locale.ROOT);
         String compactName = lowerName.replaceAll("[^a-z0-9]", "");
         String domain = UrlUtils.registrableDomain(senderDomain);
+        // The display name's own words, for corroborating a common-word brand label.
+        Set<String> nameTokens = new LinkedHashSet<>(Arrays.asList(lowerName.split("[^a-z0-9]+")));
 
         List<String> namedBrands = new ArrayList<>();
         for (String brand : BrandConstants.BRAND_DOMAINS) {
-            String label = brand.split("\\.", 2)[0];
+            String label = BrandConstants.labelOf(brand);
             boolean namesBrand =
                 Pattern.compile("\\b" + Pattern.quote(label) + "\\b").matcher(lowerName).find()
                 || (label.length() >= MIN_COMPACT_LABEL_LENGTH && compactName.contains(label));
-            if (namesBrand) {
-                namedBrands.add(brand);
+            if (!namesBrand) {
+                continue;
             }
+            if (BrandConstants.COMMON_WORD_BRAND_LABELS.contains(label) && !hasLureWord(nameTokens, label)) {
+                continue;
+            }
+            namedBrands.add(brand);
         }
 
         if (namedBrands.isEmpty()) {
