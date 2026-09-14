@@ -72,18 +72,65 @@ public class LookalikeDetector {
         }
     }
 
+    /**
+     * The closest watched brand this candidate is a plausible typo of, or null.
+     *
+     * <p>Compares <em>names</em> -- the registrable label, "paypal" in paypal.co.uk -- not
+     * whole domains, and only accepts a distance that is small relative to the name's
+     * length. Both used to be wrong, and it cut in every direction at once:
+     *
+     * <ul>
+     *   <li>Whole domains were compared, so the top-level domain spent the edit budget.
+     *       paypall.net is one character of name plus two of TLD from paypal.com, so it
+     *       scored <b>0</b> -- as did amazom.org, gooogle.de and microsfot.co.uk. Worse,
+     *       an exact brand name on another TLD (github.io, adobe.io, ups.ca) was reported
+     *       here as a typo <em>and</em> by checkTldSwap as a TLD swap, one fact scored
+     *       twice for 100. An identical name is now left to checkTldSwap alone.</li>
+     *   <li>Any two edits counted, however short the name. Two edits in a three- or
+     *       four-letter name rewrite most of it, so bbc.com read as "2 characters from
+     *       hsbc.com" and scored 65, "treat this as hostile" -- as did pdf.com against
+     *       dpd.com, idea.com against ikea.com and nordic.com against nordea.com.</li>
+     * </ul>
+     */
     private BrandDistance closestBrandByDistance(String candidate) {
+        String candidateName = nameOf(candidate.toLowerCase(Locale.ROOT));
         BrandDistance best = null;
         for (String brand : BrandConstants.BRAND_DOMAINS) {
-            if (candidate.equalsIgnoreCase(brand)) {
+            String brandName = BrandConstants.labelOf(brand);
+            if (candidateName.equals(brandName)) {
+                continue; // the same name on another TLD is a TLD swap, not a typo
+            }
+            int dist = LEVENSHTEIN.apply(candidateName, brandName);
+            if (!isPlausibleTypo(dist, Math.max(candidateName.length(), brandName.length()))) {
                 continue;
             }
-            int dist = LEVENSHTEIN.apply(candidate.toLowerCase(Locale.ROOT), brand);
             if (best == null || dist < best.distance()) {
                 best = new BrandDistance(brand, dist);
             }
         }
         return best;
+    }
+
+    /** The name part of a domain: its registrable label, without any public suffix. */
+    private static String nameOf(String domain) {
+        String registrable = UrlUtils.registrableDomain(domain);
+        return (registrable.isBlank() ? domain : registrable).split("\\.", 2)[0];
+    }
+
+    /**
+     * Whether {@code distance} edits in a name {@code length} characters long is plausibly
+     * a typo rather than a different word: the edits must touch less than a quarter of
+     * the name. That admits one edit from five characters up (paypa1, amazom) and two
+     * from nine up (microsfot), and rules out bbc/hsbc, pdf/dpd and idea/ikea.
+     *
+     * <p>The cost is that very short brand names -- ups, dhl, dpd, irs -- no longer get
+     * edit-distance matching at all. That is deliberate: a three-letter name is within one
+     * edit of a large share of every three-letter domain in existence, so the signal was
+     * mostly noise at a solo-red weight. Character substitution (dh1.com), homoglyphs,
+     * TLD swap and the brand-in-name checks all still cover those brands.
+     */
+    private static boolean isPlausibleTypo(int distance, int length) {
+        return distance >= 1 && distance <= MAX_EDIT_DISTANCE && length > 4 * distance;
     }
 
     public LookalikeFinding checkEditDistance(String domain) {

@@ -73,7 +73,7 @@ nordea.com
 # --- Big tech / accounts ---
 google.com google.co.uk google.de google.fr google.it google.es google.nl google.be google.pl google.se google.dk google.no google.fi google.ie google.pt google.at google.ch google.cz google.ro google.hu google.gr google.ca google.com.au google.co.jp google.co.in google.com.br google.com.mx
 microsoft.com microsoft.co.uk microsoft.de microsoft.fr microsoftonline.com office.com office365.com live.com msn.com onedrive.com sharepoint.com
-apple.com icloud.com apple.co.uk apple.de apple.fr apple.it apple.es apple.ca apple.com.au apple.co.jp
+apple.com icloud.com apple.news apple.co.uk apple.de apple.fr apple.it apple.es apple.ca apple.com.au apple.co.jp
 amazon.com amazon.co.uk amazon.de amazon.fr amazon.it amazon.es amazon.nl amazon.se amazon.pl amazon.be amazon.ie amazon.ca amazon.co.jp amazon.com.au amazon.com.br amazon.com.mx amazon.com.tr amazon.in amazon.ae amazon.sa amazon.sg amazon.eg
 facebook.com fb.com facebookmail.com
 instagram.com
@@ -81,14 +81,14 @@ whatsapp.com whatsapp.net
 linkedin.com
 tiktok.com
 telegram.org
-discord.com
+discord.com discord.gg
 snapchat.com
 yahoo.com yahoo.co.uk yahoo.co.jp yahoo.de yahoo.fr
 outlook.com
 netflix.com
 spotify.com
 disneyplus.com
-adobe.com
+adobe.com adobe.io
 dropbox.com
 github.com
 gitlab.com
@@ -115,7 +115,7 @@ roblox.com
 # --- Shipping / delivery ---
 usps.com
 fedex.com
-ups.com
+ups.com ups.ca
 dhl.com dhl.de dhl.co.uk
 royalmail.com
 evri.co.uk
