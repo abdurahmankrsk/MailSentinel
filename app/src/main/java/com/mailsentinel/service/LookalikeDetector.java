@@ -202,21 +202,39 @@ public class LookalikeDetector {
         }
     }
 
-    public LookalikeFinding checkHomoglyph(String domain) {
+    /**
+     * Homoglyph imitation of a brand, or letters from different scripts mixed together.
+     *
+     * <p>Takes the full hostname, and judges script mixing <em>one label at a time</em>.
+     * It used to receive only the registrable domain and look at it as one string, which
+     * was wrong in both directions:
+     *
+     * <ul>
+     *   <li>The top-level domain counted as a second script. Every internationalised
+     *       domain on a Latin TLD therefore "mixed scripts": 東京.jp (Tokyo), ελλάδα.gr,
+     *       яндекс.ru and 中国.com all scored <b>70</b>, "treat this as hostile". Mixing
+     *       across the dot between a name and its TLD is how most IDNs look; mixing
+     *       <em>within</em> a name -- pаypal, with a Cyrillic а -- is the attack.</li>
+     *   <li>Subdomain labels were never seen. paypal.evil.com scored 62 on the subdomain
+     *       brand check, but swapping in Cyrillic а's made pаypаl.evil.com score
+     *       <b>0</b>: the brand check compares raw characters, and this check was only
+     *       ever handed "evil.com". Adding a homoglyph made an attack score lower.</li>
+     * </ul>
+     *
+     * <p>Brand imitation by transliteration still runs on the registrable domain alone,
+     * as before -- that is where a homoglyph brand name has to sit to be the domain a
+     * victim actually lands on.
+     */
+    public LookalikeFinding checkHomoglyph(String hostname) {
+        if (hostname == null || hostname.isBlank()) {
+            return null;
+        }
+        String decodedHost = decodePunycode(hostname.trim()).toLowerCase(Locale.ROOT);
+        String domain = UrlUtils.registrableDomain(decodedHost);
         String decoded = decodePunycode(domain).toLowerCase(Locale.ROOT);
         if (BrandConstants.BRAND_SET.contains(decoded)) {
             return null;
         }
-
-        Set<String> scripts = new TreeSet<>();
-        for (int i = 0; i < decoded.length(); i++) {
-            int cp = decoded.codePointAt(i);
-            String s = scriptOf(cp);
-            if (s != null) {
-                scripts.add(s);
-            }
-        }
-        boolean mixedScript = scripts.size() > 1;
 
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < decoded.length(); i++) {
@@ -245,16 +263,29 @@ public class LookalikeDetector {
             );
         }
 
-        if (mixedScript) {
-            return new LookalikeFinding(
-                "homoglyph",
-                "-",
-                "Domain " + domain + " mixes Unicode scripts (" + String.join(", ", scripts) +
-                ") within a single hostname, a common homoglyph-spoofing pattern"
-            );
+        for (String label : decodedHost.split("\\.")) {
+            Set<String> scripts = scriptsIn(label);
+            if (scripts.size() > 1) {
+                return new LookalikeFinding(
+                    "homoglyph",
+                    "-",
+                    "Hostname " + hostname + " has a label, \"" + label + "\", that mixes Unicode scripts ("
+                        + String.join(", ", scripts) + "), a common homoglyph-spoofing pattern"
+                );
+            }
         }
 
         return null;
+    }
+
+    /** The scripts of the letters in one hostname label; digits and hyphens have none. */
+    private Set<String> scriptsIn(String label) {
+        Set<String> scripts = new TreeSet<>();
+        label.codePoints()
+            .mapToObj(this::scriptOf)
+            .filter(Objects::nonNull)
+            .forEach(scripts::add);
+        return scripts;
     }
 
     /**
@@ -521,7 +552,8 @@ public class LookalikeDetector {
         LookalikeFinding f2 = checkCharSubstitution(domain);
         if (f2 != null) findings.add(f2);
 
-        LookalikeFinding f3 = checkHomoglyph(domain);
+        // The full hostname: a homoglyph in a subdomain label was otherwise never seen.
+        LookalikeFinding f3 = checkHomoglyph(hostname);
         if (f3 != null) findings.add(f3);
 
         LookalikeFinding f4 = checkTldSwap(domain);
