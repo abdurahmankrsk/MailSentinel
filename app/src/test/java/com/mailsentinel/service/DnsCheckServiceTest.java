@@ -70,4 +70,60 @@ class DnsCheckServiceTest {
 
         assertFalse(service.agreementCheck(claimed, absent).passed());
     }
+
+    // --- dmarc=pass under an unenforced policy ------------------------------------------
+    //
+    // Measured against the running app before the fix: a fully authenticated message
+    // from python.org, debian.org, apache.org or fastmail.com -- all p=none -- failed this
+    // check and scored 31, while the identical header from a p=reject domain scored 0.
+
+    private static final ClaimedAuthResults ALL_PASS = new ClaimedAuthResults(true, "pass", "pass", "pass");
+
+    @Test
+    void aDmarcPassUnderAMonitoringPolicyIsNotAContradiction() {
+        // A policy says what to do with mail that fails. Gmail stamps "dmarc=pass (p=NONE)".
+        LiveDnsResult monitoringOnly = new LiveDnsResult(true, true, true, true, "none");
+
+        CheckResult agreement = service.agreementCheck(ALL_PASS, monitoringOnly);
+
+        assertTrue(agreement.passed(), agreement.detail());
+    }
+
+    @Test
+    void aDmarcPassIsConsistentWithEveryPublishedPolicy() {
+        for (String policy : new String[] {"none", "quarantine", "reject"}) {
+            LiveDnsResult published = new LiveDnsResult(true, true, true, true, policy);
+            assertTrue(service.agreementCheck(ALL_PASS, published).passed(), "p=" + policy);
+        }
+    }
+
+    @Test
+    void aDmarcPassWithNoRecordAtAllIsStillAContradiction() {
+        // SPF present, so this isolates the DMARC clause: with no record there is nothing
+        // a receiver could have evaluated to a pass.
+        LiveDnsResult noDmarc = new LiveDnsResult(true, true, false, true, null);
+
+        CheckResult agreement = service.agreementCheck(ALL_PASS, noDmarc);
+
+        assertFalse(agreement.passed());
+        assertTrue(agreement.detail().contains("no DMARC record"), agreement.detail());
+    }
+
+    @Test
+    void anUnenforcedPolicyIsScoredOnceAsAWeaknessNotTwiceAsAForgery() {
+        LiveDnsResult monitoringOnly = new LiveDnsResult(true, true, true, true, "none");
+
+        assertFalse(checkNamed(service.toCheckResults("python.org", monitoringOnly), "DMARC record & policy").passed(),
+                "the weakness is still reported by the live DMARC check");
+        assertTrue(service.agreementCheck(ALL_PASS, monitoringOnly).passed(),
+                "but it is not also reported as the header contradicting DNS");
+    }
+
+    @Test
+    void aClaimedDmarcFailIsNeverTreatedAsADisagreement() {
+        ClaimedAuthResults failed = new ClaimedAuthResults(true, "pass", "pass", "fail");
+        LiveDnsResult monitoringOnly = new LiveDnsResult(true, true, true, true, "none");
+
+        assertTrue(service.agreementCheck(failed, monitoringOnly).passed());
+    }
 }

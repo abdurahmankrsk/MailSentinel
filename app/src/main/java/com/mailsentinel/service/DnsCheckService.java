@@ -199,9 +199,16 @@ public class DnsCheckService {
         if (live.spfResolved() && "pass".equalsIgnoreCase(claimed.spf()) && !live.spfPresent()) {
             disagreements.add("header claims spf=pass but no SPF record exists");
         }
-        if (live.dmarcResolved() && "pass".equalsIgnoreCase(claimed.dmarc())
-                && (!live.dmarcPresent() || "none".equalsIgnoreCase(live.dmarcPolicy()))) {
-            disagreements.add("header claims dmarc=pass but DMARC is unenforced or absent");
+        // Only a missing DMARC record contradicts dmarc=pass -- the policy never does.
+        // p=none, p=quarantine and p=reject say what a receiver should do with mail that
+        // FAILS DMARC; mail from a p=none domain passes exactly as it would under p=reject,
+        // and Gmail stamps it "dmarc=pass (p=NONE)". Treating p=none as a contradiction
+        // called genuine, fully-authenticated mail a forged header: python.org, debian.org,
+        // apache.org and fastmail.com all publish p=none, and each scored 31 on an
+        // identical header that scored 0 from a p=reject domain. The policy's weakness is
+        // real, and toCheckResults already scores it once, as a weakness.
+        if (live.dmarcResolved() && "pass".equalsIgnoreCase(claimed.dmarc()) && !live.dmarcPresent()) {
+            disagreements.add("header claims dmarc=pass but the domain publishes no DMARC record");
         }
 
         if (!disagreements.isEmpty()) {
