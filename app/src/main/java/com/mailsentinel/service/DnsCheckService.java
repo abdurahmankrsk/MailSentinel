@@ -92,33 +92,89 @@ public class DnsCheckService {
         boolean spfPresent = domainLookup.records().stream()
             .anyMatch(r -> r.toLowerCase(Locale.ROOT).startsWith("v=spf1"));
 
-        TxtLookup dmarcLookup = getTxtRecords("_dmarc." + domain);
-        String dmarcTxt = dmarcLookup.records().stream()
-            .filter(r -> r.toLowerCase(Locale.ROOT).startsWith("v=dmarc1"))
-            .findFirst()
-            .orElse(null);
-
-        String dmarcPolicy = null;
-        if (dmarcTxt != null) {
-            for (String tag : dmarcTxt.split(";")) {
-                String trimmed = tag.trim();
-                if (trimmed.toLowerCase(Locale.ROOT).startsWith("p=")) {
-                    String[] kv = trimmed.split("=", 2);
-                    if (kv.length > 1) {
-                        dmarcPolicy = kv[1].trim().toLowerCase(Locale.ROOT);
-                    }
-                    break;
-                }
-            }
-        }
+        DmarcPolicy dmarc = discoverDmarc(domain);
 
         return new LiveDnsResult(
             spfPresent,
             domainLookup.resolved(),
-            dmarcTxt != null,
-            dmarcLookup.resolved(),
-            dmarcPolicy
+            dmarc.recordDomain() != null,
+            dmarc.resolved(),
+            dmarc.policy(),
+            dmarc.recordDomain()
         );
+    }
+
+    /** The DMARC policy governing a domain, where it was published, and whether DNS answered. */
+    private record DmarcPolicy(boolean resolved, String recordDomain, String policy) {
+        static DmarcPolicy unresolved() {
+            return new DmarcPolicy(false, null, null);
+        }
+
+        static DmarcPolicy absent() {
+            return new DmarcPolicy(true, null, null);
+        }
+    }
+
+    /**
+     * DMARC policy discovery, RFC 7489 section 6.6.3.
+     *
+     * <p>A subdomain with no DMARC record of its own is governed by its organisational
+     * domain's record -- by that record's {@code sp=} subdomain policy when it has one,
+     * and by {@code p=} otherwise. This used to query only {@code _dmarc.<exact From
+     * domain>}, so a subdomain sender read as publishing no DMARC at all. Measured with
+     * live DNS: PayPal's real transactional sender, service@intl.paypal.com, scored 31 on
+     * a fully authenticated header -- "No DMARC record found at _dmarc.intl.paypal.com",
+     * plus the agreement check calling its genuine dmarc=pass a contradiction -- while
+     * paypal.com publishes p=reject, which covers it. Same for notify.wellsfargo.com.
+     *
+     * <p>An unanswered query is never read as an absence. If the subdomain's own lookup
+     * does not complete, the result is unresolved rather than a fall-back to the
+     * organisational domain, since the subdomain may have a record that simply did not
+     * arrive.
+     */
+    private DmarcPolicy discoverDmarc(String domain) {
+        TxtLookup exact = getTxtRecords("_dmarc." + domain);
+        if (!exact.resolved()) {
+            return DmarcPolicy.unresolved();
+        }
+        String record = dmarcRecordIn(exact);
+        if (record != null) {
+            return new DmarcPolicy(true, domain, tagValue(record, "p"));
+        }
+
+        String organizational = UrlUtils.registrableDomain(domain);
+        if (organizational.isBlank() || organizational.equalsIgnoreCase(domain)) {
+            return DmarcPolicy.absent();
+        }
+        TxtLookup parent = getTxtRecords("_dmarc." + organizational);
+        if (!parent.resolved()) {
+            return DmarcPolicy.unresolved();
+        }
+        String parentRecord = dmarcRecordIn(parent);
+        if (parentRecord == null) {
+            return DmarcPolicy.absent();
+        }
+        String subdomainPolicy = tagValue(parentRecord, "sp");
+        return new DmarcPolicy(true, organizational,
+            subdomainPolicy != null ? subdomainPolicy : tagValue(parentRecord, "p"));
+    }
+
+    private static String dmarcRecordIn(TxtLookup lookup) {
+        return lookup.records().stream()
+            .filter(r -> r.toLowerCase(Locale.ROOT).startsWith("v=dmarc1"))
+            .findFirst()
+            .orElse(null);
+    }
+
+    /** The lowercased value of one tag in a DMARC record, or null if the tag is absent. */
+    private static String tagValue(String record, String tag) {
+        for (String part : record.split(";")) {
+            String[] kv = part.trim().split("=", 2);
+            if (kv.length == 2 && kv[0].trim().equalsIgnoreCase(tag)) {
+                return kv[1].trim().toLowerCase(Locale.ROOT);
+            }
+        }
+        return null;
     }
 
     /**
@@ -161,13 +217,25 @@ public class DnsCheckService {
                 + "; scored as neutral, not as a missing record";
         } else if (!live.dmarcPresent()) {
             dmarcPassed = false;
-            dmarcDetail = "No DMARC record found at _dmarc." + domain;
-        } else if ("none".equalsIgnoreCase(live.dmarcPolicy())) {
-            dmarcPassed = false;
-            dmarcDetail = domain + " publishes DMARC with policy p=none (monitoring only, not enforced)";
+            String organizational = UrlUtils.registrableDomain(domain);
+            dmarcDetail = organizational.isBlank() || organizational.equalsIgnoreCase(domain)
+                ? "No DMARC record found at _dmarc." + domain
+                : "No DMARC record found at _dmarc." + domain + " or its organisational domain, _dmarc." + organizational;
         } else {
-            dmarcPassed = true;
-            dmarcDetail = domain + " publishes DMARC with policy p=" + live.dmarcPolicy();
+            // Say where the policy came from. A subdomain covered by its organisational
+            // domain's record must not be described as publishing one itself -- the
+            // reader can check, and would find nothing at _dmarc.<subdomain>.
+            boolean inherited = live.dmarcRecordDomain() != null && !live.dmarcRecordDomain().equalsIgnoreCase(domain);
+            String source = inherited
+                ? domain + " is covered by " + live.dmarcRecordDomain() + "'s DMARC record, with policy p="
+                : domain + " publishes DMARC with policy p=";
+            if ("none".equalsIgnoreCase(live.dmarcPolicy())) {
+                dmarcPassed = false;
+                dmarcDetail = source + "none (monitoring only, not enforced)";
+            } else {
+                dmarcPassed = true;
+                dmarcDetail = source + live.dmarcPolicy();
+            }
         }
 
         checks.add(new CheckResult(
